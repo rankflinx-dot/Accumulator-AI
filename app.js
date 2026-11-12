@@ -174,6 +174,23 @@
       const m=row.metrics;
       card.innerHTML='<b>'+names[row.symbol]+'</b><strong class="'+(m.qualified?'positive':'negative')+'">'+m.score+'/100 · '+(m.qualified?'QUALIFIED':'NO TRADE')+'</strong><small>'+m.trend+' · ADX '+fmt(m.adx)+' · ATR '+fmt(m.atr)+(m.spike?' · SPIKE':'')+'</small>';
     });
+    const allSymbols=Object.keys(names);
+    const allMarketsRequested=allSymbols.length>0 && allSymbols.every(symbol=>Object.prototype.hasOwnProperty.call(state.scanData,symbol));
+    const allHistoryReady=allMarketsRequested && allSymbols.every(symbol=>state.scanData[symbol].ticks.length>=100);
+    const allLiveReady=allMarketsRequested && allSymbols.every(symbol=>state.liveSymbols.has(symbol));
+    const analysisComplete=allHistoryReady && allLiveReady && rows.length===allSymbols.length && rows.every(row=>row.metrics);
+    // Never publish a "best market" from a partial scan. Every ACCU-enabled
+    // market must have sufficient history and a confirmed live tick first.
+    if(!analysisComplete) {
+      const historyReady=allSymbols.filter(symbol=>state.scanData[symbol] && state.scanData[symbol].ticks.length>=100).length;
+      const liveReady=allSymbols.filter(symbol=>state.liveSymbols.has(symbol)).length;
+      $("bestMarket").textContent="ANALYSIS IN PROGRESS";
+      $("bestMarketDetail").textContent="No recommendation yet · evaluating all eligible markets before selecting one.";
+      $("scannerStatus").textContent="Analysis in progress · history ready for "+historyReady+"/"+allSymbols.length+" markets · live feeds confirmed for "+liveReady+"/"+allSymbols.length+". No market will be proposed until the full scan is complete.";
+      $("recommendedMarket").value="";
+      $("useRecommended").disabled=true;
+      return;
+    }
     const qualified=rows.filter(x=>x.metrics && x.metrics.qualified).sort((a,b)=>b.metrics.score-a.metrics.score);
     if(qualified.length) {
       const best=qualified[0];
