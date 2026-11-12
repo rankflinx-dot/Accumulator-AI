@@ -41,6 +41,7 @@
     state.scanReady=false;
     state.scanData={};
     state.ticks=[];
+    $("useRecommended").disabled=true;
     state.historyLoaded=false;
     const symbols=Object.keys(names).filter(symbol=>state.availableSymbols.includes(symbol));
     const missing=Object.keys(names).filter(symbol=>!state.availableSymbols.includes(symbol));
@@ -62,7 +63,8 @@
     state.scanReady=true;
   }
   function renderScanner() {
-    const rows=Object.entries(state.scanData).map(([symbol,data])=>({symbol,data,metrics:evaluateMarket(data.ticks)}));
+    const horizon=Number($("timeframe").value)||5;
+    const rows=Object.entries(state.scanData).map(([symbol,data])=>({symbol,data,metrics:evaluateMarket(data.ticks,horizon)}));
     rows.forEach(row=>{
       row.data.metrics=row.metrics;
       const card=$("scan-"+row.symbol);
@@ -281,7 +283,7 @@
     const rs=(gains/period)/(losses/period);
     return 100-100/(1+rs);
   }
-  function evaluateMarket(prices) {
+  function evaluateMarket(prices, horizon=5) {
     const p=prices.map(t=>typeof t==="number"?t:t.price),n=p.length;
     if(n<100)return null;
     const last=p[n-1],prev=p[n-2],recent=p.slice(-20),prior=p.slice(-40,-20);
@@ -293,13 +295,18 @@
     const atrRising=baseAtr>0&&atr>baseAtr*1.25;
     const bandsExpanding=priorWidth>0&&width>priorWidth*1.15;
     const r=rsi(p,14),e20=ema(p,20),e50=ema(p,50);
-    const direction=p.slice(-15).slice(1).map((v,i)=>v-p[n-15+i]);
+    const adxChanges=p.slice(-15).slice(1).map((v,i)=>v-p[n-15+i]);
+    const adxNet=adxChanges.reduce((a,b)=>a+b,0),adxPath=adxChanges.reduce((a,b)=>a+Math.abs(b),0);
+    const adx=adxPath?100*Math.abs(adxNet)/adxPath:0;
+    const signalWindow=Math.max(1,Math.min(20,Math.floor(Number(horizon)||5)));
+    const direction=p.slice(-(signalWindow+1)).slice(1).map((v,i)=>v-p[n-signalWindow+i]);
     const net=direction.reduce((a,b)=>a+b,0),path=direction.reduce((a,b)=>a+Math.abs(b),0);
-    const adx=path?100*Math.abs(net)/path:0;
+    const momentum=path?100*Math.abs(net)/path:0;
     const emaGap=last?Math.abs(e20-e50)/Math.abs(last):0;
     let trend="SIDEWAYS";
-    if((adx>25||emaGap>0.0005)&&e20>e50&&net>0)trend="BULLISH";
-    else if((adx>25||emaGap>0.0005)&&e20<e50&&net<0)trend="BEARISH";
+    const trendEvidence=adx>25||emaGap>0.0005||(net!==0&&momentum>25);
+    if(trendEvidence&&e20>e50&&net>0)trend="BULLISH";
+    else if(trendEvidence&&e20<e50&&net<0)trend="BEARISH";
     const baseline=mean(changes.slice(-50,-14))||atr;
     const spike=baseline>0&&Math.abs(last-prev)>baseline*3;
     const directional=adx>25||emaGap>0.0005||trend!=="SIDEWAYS";
@@ -315,13 +322,13 @@
     if(!spike)reasons.push("No sudden spike");
     score=Math.max(0,Math.min(100,Math.round(score)));
     const qualified=!bandsExpanding&&!atrRising&&adx<=25&&!spike&&!directional&&trend==="SIDEWAYS"&&score>=75;
-    return {last,mid,upper,lower,atr,r,e20,e50,adx,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
+    return {last,mid,upper,lower,atr,r,e20,e50,adx,momentum,signalWindow,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
   }
   // Expose pure calculations for repeatable regression tests; no trading actions are exposed.
   window.AccumulatorAI = Object.freeze({evaluateMarket, rsi, ema});
 
   function calculate() {
-    const d=evaluateMarket(state.ticks);
+    const d=evaluateMarket(state.ticks,Number($("timeframe").value)||5);
     if(!d)return null;
     return {...d,label:d.qualified?"FAVOURABLE":d.score>=55?"CAUTION":"AVOID"};
   }
@@ -388,6 +395,7 @@
     $("historyRows").innerHTML=state.history.map(x=>'<tr><td>'+x.time+'</td><td>'+x.market+'</td><td>'+fmt(x.quote)+'</td><td>'+fmt(x.rsi)+'</td><td>'+fmt(x.adx)+'</td><td>'+x.score+'</td><td class="'+(x.label==="FAVOURABLE"?"positive":x.label==="AVOID"?"negative":"warning")+'">'+x.label+'</td></tr>').join("");
   }
   $("market").addEventListener("change",subscribeMarket);
+  $("timeframe").addEventListener("change",()=>{renderScanner();render();});
   $("useRecommended").addEventListener("click",()=>{const symbol=$("recommendedMarket").value;if(!symbol||!state.scanData[symbol]||!state.scanData[symbol].metrics||!state.scanData[symbol].metrics.qualified)return;$("market").value=symbol;state.market=symbol;state.ticks=state.scanData[symbol].ticks.slice();$("marketName").textContent=names[symbol];render();window.scrollTo({top:0,behavior:"smooth"});});
   $("reconnectBtn").addEventListener("click",connect);
   $("scanBtn").addEventListener("click",()=>{render();addSnapshot();});
