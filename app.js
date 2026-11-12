@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, requestId:1, subscriptionIds:[],
-    historyLoaded:false, availableSymbols:null
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false
   };
   const names = {
     R_10:"Volatility 10 Index", R_25:"Volatility 25 Index",
@@ -32,6 +32,56 @@
   function forgetSubscriptions() {
     for(const id of state.subscriptionIds) send({forget:id});
     state.subscriptionIds=[];
+  }
+
+  function startAllMarketScans() {
+    forgetSubscriptions();
+    state.scanReady=false;
+    state.scanData={};
+    const symbols=Object.keys(names).filter(symbol=>state.availableSymbols.includes(symbol));
+    $("scannerStatus").textContent="Scanning "+symbols.length+" Deriv markets · collecting history and live ticks";
+    $("bestMarket").textContent="Scanning markets…";
+    $("bestMarketDetail").textContent="Waiting for enough live observations";
+    $("marketCards").innerHTML=symbols.map(symbol=>'<div class="scan-card" id="scan-'+symbol+'"><b>'+names[symbol]+'</b><strong>Loading…</strong><small>Fetching current data</small></div>').join("");
+    if(!symbols.length) {
+      $("scannerStatus").textContent="None of the configured volatility indices were returned by Deriv";
+      $("bestMarket").textContent="NO MARKET AVAILABLE";
+      return;
+    }
+    symbols.forEach(symbol=>{
+      state.scanData[symbol]={ticks:[],metrics:null};
+      send({ticks_history:symbol,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
+      send({ticks:symbol,subscribe:1});
+    });
+    state.scanReady=true;
+  }
+  function renderScanner() {
+    const rows=Object.entries(state.scanData).map(([symbol,data])=>({symbol,data,metrics:evaluateMarket(data.ticks)}));
+    rows.forEach(row=>{
+      row.data.metrics=row.metrics;
+      const card=$("scan-"+row.symbol);
+      if(!card)return;
+      if(!row.metrics) {
+        card.innerHTML='<b>'+names[row.symbol]+'</b><strong>Collecting data</strong><small>'+row.data.ticks.length+' ticks · need 100</small>';
+        return;
+      }
+      const m=row.metrics;
+      card.innerHTML='<b>'+names[row.symbol]+'</b><strong class="'+(m.qualified?'positive':'negative')+'">'+m.score+'/100 · '+(m.qualified?'QUALIFIED':'NO TRADE')+'</strong><small>'+m.trend+' · ADX '+fmt(m.adx)+' · ATR '+fmt(m.atr)+(m.spike?' · SPIKE':'')+'</small>';
+    });
+    const qualified=rows.filter(x=>x.metrics && x.metrics.qualified).sort((a,b)=>b.metrics.score-a.metrics.score);
+    if(qualified.length) {
+      const best=qualified[0];
+      $("bestMarket").textContent=names[best.symbol];
+      $("bestMarketDetail").textContent="Qualified · stability "+best.metrics.score+"/100 · "+best.metrics.trend+" · ADX "+fmt(best.metrics.adx)+" · ATR "+fmt(best.metrics.atr);
+      $("scannerStatus").textContent=qualified.length+" of "+rows.length+" markets meet every entry filter. Best qualified market selected by score.";
+      $("recommendedMarket").value=best.symbol;
+      $("useRecommended").disabled=false;
+    } else {
+      $("bestMarket").textContent="NO SUITABLE MARKET";
+      $("bestMarketDetail").textContent="No market currently passes every required filter. Do not enter.";
+      $("scannerStatus").textContent="No trade · "+rows.filter(x=>x.metrics).length+" of "+rows.length+" markets evaluated. Waiting for a fully qualified market.";
+      $("useRecommended").disabled=true;
+    }
   }
   function requestMarketData() {
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
@@ -102,7 +152,7 @@
           setConnection("error",names[state.market]+" is not listed as an active symbol by Deriv");
           return;
         }
-        requestMarketData();
+        startAllMarketScans();
         return;
       }
       if(msg.history && msg.history.prices) {
@@ -297,6 +347,7 @@
     $("historyRows").innerHTML=state.history.map(x=>'<tr><td>'+x.time+'</td><td>'+x.market+'</td><td>'+fmt(x.quote)+'</td><td>'+fmt(x.rsi)+'</td><td>'+fmt(x.adx)+'</td><td>'+x.score+'</td><td class="'+(x.label==="FAVOURABLE"?"positive":x.label==="AVOID"?"negative":"warning")+'">'+x.label+'</td></tr>').join("");
   }
   $("market").addEventListener("change",subscribeMarket);
+  $("useRecommended").addEventListener("click",()=>{const symbol=$("recommendedMarket").value;if(!symbol||!state.scanData[symbol]||!state.scanData[symbol].metrics||!state.scanData[symbol].metrics.qualified)return;$("market").value=symbol;state.market=symbol;state.ticks=state.scanData[symbol].ticks.slice();$("marketName").textContent=names[symbol];render();window.scrollTo({top:0,behavior:"smooth"});});
   $("reconnectBtn").addEventListener("click",connect);
   $("scanBtn").addEventListener("click",()=>{render();addSnapshot();});
   $("clearHistory").addEventListener("click",()=>{
