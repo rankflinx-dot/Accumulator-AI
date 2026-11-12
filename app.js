@@ -299,7 +299,7 @@
     const adxNet=adxChanges.reduce((a,b)=>a+b,0),adxPath=adxChanges.reduce((a,b)=>a+Math.abs(b),0);
     const adx=adxPath?100*Math.abs(adxNet)/adxPath:0;
     const signalWindow=Math.max(1,Math.min(20,Math.floor(Number(horizon)||5)));
-    const direction=p.slice(-(signalWindow+1)).slice(1).map((v,i)=>v-p[n-signalWindow+i]);
+    const direction=p.slice(-(signalWindow+1)).slice(1).map((v,i)=>v-p[n-signalWindow-1+i]);
     const net=direction.reduce((a,b)=>a+b,0),path=direction.reduce((a,b)=>a+Math.abs(b),0);
     const momentum=path?100*Math.abs(net)/path:0;
     const emaGap=last?Math.abs(e20-e50)/Math.abs(last):0;
