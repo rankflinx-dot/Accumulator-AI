@@ -227,25 +227,6 @@
           state.ws.send(JSON.stringify({contracts_for:symbol,req_id}));
         });
         return;
-        }
-        if(!state.availableSymbols.includes(state.market)){
-          const fallback=Object.keys(names).find(symbol=>state.availableSymbols.includes(symbol));
-          if(fallback){
-            state.market=fallback;
-            $("market").value=fallback;
-            $("marketName").textContent=names[fallback];
-            setConnection("connected",names[fallback]+" selected · scanning available indices");
-          } else {
-            setConnection("error","Deriv returned markets, but none match the configured R_10/R_25/R_50/R_75/R_100 indices");
-            $("scannerStatus").textContent="Deriv returned "+state.availableSymbols.length+" active markets. First symbols: "+activePreview+". None match the five configured symbols. Socket kept open.";
-            $("bestMarket").textContent="CONFIGURED SYMBOLS NOT FOUND";
-            $("marketCards").innerHTML="";
-            return;
-          }
-        }
-        $("scannerStatus").textContent="Deriv returned "+state.availableSymbols.length+" active markets. Matching configured indices: "+Object.keys(names).filter(s=>state.availableSymbols.includes(s)).join(", ")+". Starting history and live subscriptions.";
-        startAllMarketScans();
-        return;
       }
       if(msg.contracts_for) {
         const symbol=state.contractRequests[msg.req_id] || (msg.echo_req && msg.echo_req.contracts_for);
