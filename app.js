@@ -271,6 +271,7 @@
           const option=$("market").querySelector('option[value="'+symbol+'"]');
           if(option) { option.textContent=names[symbol]+" ("+symbol+")"; option.disabled=false; }
         } else if(symbol) {
+          delete names[symbol];
           const option=$("market").querySelector('option[value="'+symbol+'"]');
           if(option) option.remove();
         }
