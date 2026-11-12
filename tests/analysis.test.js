@@ -68,6 +68,11 @@ for (let i = 0; i < 13; i++) {
     contracts_for: { available: [{ contract_type: "ACCU" }] }
   }) });
 }
+// Connection and ACCU discovery must finish without starting the scanner.
+assert.equal(socket.sent.filter(x => x.ticks_history).length, 0, "scanner must wait for the user to press its button");
+assert.equal(element("startScanner").disabled, false, "scanner button should enable after ACCU verification");
+element("startScanner").listeners.click();
+assert.equal(element("startScanner").textContent, "Stop AI Scanner", "scanner button should switch to Stop while scanning");
 // Run the staggered feed timers just as the browser would over time.
 while (socket.sent.filter(x => x.ticks_history).length < 13) {
   const nextTimer = scheduledTimeouts.pop();
