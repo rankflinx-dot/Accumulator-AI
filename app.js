@@ -208,21 +208,15 @@
     };
   }
   function subscribeMarket() {
-    clearTimeout(state.dataTimer);
-    if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
-    forgetSubscriptions();
     state.market=$("market").value;
-    state.ticks=[];
-    state.historyLoaded=false;
     $("marketName").textContent=names[state.market];
-    $("quote").textContent="—";
-    $("quoteTime").textContent="Loading market history";
-    setConnection("connected","Loading "+names[state.market]);
-    if(state.availableSymbols && state.availableSymbols.includes(state.market)) {
-      requestMarketData();
+    if(state.scanData[state.market]) {
+      state.ticks=state.scanData[state.market].ticks.slice();
+      render();
+      setConnection("connected","Live all-market scan · viewing "+names[state.market]);
     } else {
-      send({active_symbols:"brief"});
-      setConnection("connected","Checking "+names[state.market]+" availability on Deriv");
+      $("quote").textContent="—";
+      $("quoteTime").textContent="Waiting for selected market history";
     }
   }
   function ema(values,period) {
@@ -260,8 +254,8 @@
     const adx=path?100*Math.abs(net)/path:0;
     const emaGap=last?Math.abs(e20-e50)/Math.abs(last):0;
     let trend="SIDEWAYS";
-    if(adx>25&&e20>e50&&net>0)trend="BULLISH";
-    else if(adx>25&&e20<e50&&net<0)trend="BEARISH";
+    if((adx>25||emaGap>0.0005)&&e20>e50&&net>0)trend="BULLISH";
+    else if((adx>25||emaGap>0.0005)&&e20<e50&&net<0)trend="BEARISH";
     const baseline=mean(changes.slice(-50,-14))||atr;
     const spike=baseline>0&&Math.abs(last-prev)>baseline*3;
     const directional=adx>25||emaGap>0.0005||trend!=="SIDEWAYS";
@@ -276,7 +270,7 @@
     if(adx<=25)reasons.push("ADX at or below 25");
     if(!spike)reasons.push("No sudden spike");
     score=Math.max(0,Math.min(100,Math.round(score)));
-    const qualified=!bandsExpanding&&!atrRising&&adx<=25&&!spike&&trend==="SIDEWAYS"&&score>=75;
+    const qualified=!bandsExpanding&&!atrRising&&adx<=25&&!spike&&!directional&&trend==="SIDEWAYS"&&score>=75;
     return {last,mid,upper,lower,atr,r,e20,e50,adx,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
   }
   function calculate() {
