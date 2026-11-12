@@ -19,14 +19,14 @@
         <div class="feed-label"><span class="pulse"></span> PUBLIC LIVE TICKS</div>
       </section>
       <section class="panel scanner-panel">
-        <div class="panel-heading"><div><h2>AI market scanner</h2><p>Automatically discovers every active Deriv market that offers Accumulator (ACCU) contracts and checks your no-trade filters</p></div><span class="live-tag">ALL ACCU MARKETS</span></div>
+        <div class="panel-heading"><div><h2>Volatility index scanner</h2><p>Discovers active Deriv indices, verifies which support Accumulator (ACCU), and checks your no-trade filters</p></div><span class="live-tag">ELIGIBLE INDICES</span></div>
         <div class="best-market"><div><span class="eyebrow">BEST QUALIFIED MARKET</span><strong id="bestMarket">Waiting for Deriv market data…</strong><small id="bestMarketDetail">No recommendation until every required filter is checked</small></div><button id="useRecommended" class="primary" disabled>Use market</button><input id="recommendedMarket" type="hidden" value=""></div>
         <p id="scannerStatus" class="scanner-status">Connecting to Deriv and preparing market scan…</p>
         <div id="marketCards" class="market-cards"><div class="scan-card">Waiting for market data…</div></div>
         <p class="footnote">A market is proposed only when Bollinger width is not expanding, ATR is not rising sharply, ADX is at or below 25, no spike is detected, and the trend is sideways. If none pass, the result is NO TRADE.</p>
       </section>
       <section class="controls panel">
-        <label>Market<select id="market"><option value="">Discovering Accumulator indices…</option></select></label>
+        <label>Market<select id="market"><option value="">Discovering volatility indices…</option></select></label>
         <label>Analysis timeframe<select id="timeframe"><option value="1">1 tick</option><option value="5" selected>5 ticks</option><option value="10">10 ticks</option><option value="20">20 ticks</option></select></label>
         <label>Growth rate<select id="growth"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select></label>
         <button id="scanBtn" class="primary">Analyze market <span>↗</span></button>
