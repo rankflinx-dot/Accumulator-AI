@@ -127,7 +127,7 @@
         if(!Number.isFinite(price))return;
         state.ticks.push({price,time:Number(t.epoch||Date.now()/1000)});
         if(state.ticks.length>600)state.ticks.shift();
-        if(msg.subscription)state.subscriptionId=msg.subscription.id;
+        if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
         setConnection("connected","Live · "+names[state.market]+" · "+state.ticks.length+" ticks");
         render();
       }
