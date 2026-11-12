@@ -123,6 +123,20 @@ assert.equal(element("marketName").textContent, "Volatility 75 (1s) Index", "the
 assert.equal(element("quote").textContent, "1010.00", "the selected 1-second index should show its own quote");
 
 
+const ranked = api.selectQualifiedMarkets([
+  { symbol: "R_10", metrics: { qualified: true, score: 90, adx: 20, atr: 2, mid: 1000 } },
+  { symbol: "R_25", metrics: { qualified: true, score: 95, adx: 24, atr: 4, mid: 1000 } },
+  { symbol: "R_50", metrics: { qualified: true, score: 95, adx: 18, atr: 8, mid: 1000 } },
+  { symbol: "R_75", metrics: { qualified: false, score: 100, adx: 1, atr: 0, mid: 1000 } }
+]);
+assert.equal(ranked[0].symbol, "R_50", "highest score wins; lower ADX breaks a score tie");
+assert.deepEqual(ranked.map(row => row.symbol), ["R_50", "R_25", "R_10"], "only qualified markets should be ranked");
+assert.deepEqual(api.selectQualifiedMarkets([
+  { symbol: "R_25", metrics: { qualified: true, score: 95, adx: 20, atr: 5, mid: 1000 } },
+  { symbol: "R_10", metrics: { qualified: true, score: 95, adx: 20, atr: 2, mid: 1000 } }
+]).map(row => row.symbol), ["R_10", "R_25"], "lower relative ATR breaks a complete score and ADX tie");
+assert.equal(api.selectQualifiedMarkets([{symbol:"R_10",metrics:{qualified:false,score:100}}]).length, 0);
+
 const ticks = values => values.map((price, i) => ({ price, time: i }));
 const flat = Array(300).fill(1000);
 const stable = api.evaluateMarket(ticks(flat));
