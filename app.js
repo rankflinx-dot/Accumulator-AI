@@ -341,7 +341,7 @@
         const hasAccumulator=available.some(contract=>String(contract.contract_type||"").toUpperCase()==="ACCU");
         if(symbol && hasAccumulator) {
           const detail=state.activeSymbolDetails[symbol]||{};
-          names[symbol]=detail.underlying_symbol_name || detail.display_name || symbol;
+          names[symbol]=marketDisplayName(detail,symbol);
           const option=$("market").querySelector('option[value="'+symbol+'"]');
           if(option) { option.textContent=names[symbol]+" ("+symbol+")"; option.disabled=false; }
         } else if(symbol) {
