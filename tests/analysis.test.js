@@ -56,6 +56,8 @@ socket.onmessage({ data: JSON.stringify({
     underlying_symbol: symbol, underlying_symbol_name: "Volatility " + symbol.slice(2) + " Index", underlying_symbol_type: "stockindex"
   }))
 }) });
+assert.match(element("market").innerHTML, /Volatility 10 Index/, "market tab should show discovered volatility indices immediately");
+assert.equal(element("market").disabled, true, "market selection should stay disabled until ACCU support is verified");
 const firstContractRequest = socket.sent.filter(x => x.contracts_for);
 assert.equal(firstContractRequest.length, 1, "scanner should check ACCU availability sequentially");
 for (let i = 0; i < 5; i++) {
@@ -74,6 +76,8 @@ while (socket.sent.filter(x => x.ticks_history).length < 5) {
 }
 const historyRequests = socket.sent.filter(x => x.ticks_history);
 const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1);
+assert.equal(element("market").disabled, false, "market selection should unlock after ACCU verification");
+assert.match(element("market").innerHTML, /Volatility 10 Index/, "verified ACCU markets should remain visible in the selector");
 assert.equal(historyRequests.length, 5, "scanner should request history for all five configured markets");
 assert.equal(tickRequests.length, 5, "scanner should subscribe to all five configured markets");
 for (const request of historyRequests) {
