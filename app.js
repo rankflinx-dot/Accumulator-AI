@@ -199,8 +199,17 @@
           $("scannerStatus").textContent="Could not read the active markets list from Deriv. Reconnecting…";
           return;
         }
-        state.availableSymbols=msg.active_symbols.map(x=>x.symbol).filter(Boolean);
-        if(!state.availableSymbols.length){setConnection("error","Deriv returned no active markets · retrying");try{ws.close();}catch(e){}return;}
+        state.availableSymbols=msg.active_symbols
+          .map(x=>typeof x==="string"?x:(x && (x.symbol || x.underlying_symbol)))
+          .filter(Boolean);
+        const activePreview=state.availableSymbols.slice(0,12).join(", ") || "no symbol names found";
+        if(!state.availableSymbols.length){
+          // Keep the socket open: closing here creates a misleading browser 1005.
+          setConnection("error","Active-symbol response received, but no symbol names were readable");
+          $("scannerStatus").textContent="Deriv sent active_symbols with "+msg.active_symbols.length+" entries, but none contained a readable symbol field. First entry: "+JSON.stringify(msg.active_symbols[0]||null)+". Socket kept open for diagnosis.";
+          $("bestMarket").textContent="SYMBOL RESPONSE UNREADABLE";
+          return;
+        }
         if(!state.availableSymbols.includes(state.market)){
           const fallback=Object.keys(names).find(symbol=>state.availableSymbols.includes(symbol));
           if(fallback){
@@ -209,9 +218,14 @@
             $("marketName").textContent=names[fallback];
             setConnection("connected",names[fallback]+" selected · scanning available indices");
           } else {
-            setConnection("error","None of the configured volatility indices are active on Deriv");
+            setConnection("error","Deriv returned markets, but none match the configured R_10/R_25/R_50/R_75/R_100 indices");
+            $("scannerStatus").textContent="Deriv returned "+state.availableSymbols.length+" active markets. First symbols: "+activePreview+". None match the five configured symbols. Socket kept open.";
+            $("bestMarket").textContent="CONFIGURED SYMBOLS NOT FOUND";
+            $("marketCards").innerHTML="";
+            return;
           }
         }
+        $("scannerStatus").textContent="Deriv returned "+state.availableSymbols.length+" active markets. Matching configured indices: "+Object.keys(names).filter(s=>state.availableSymbols.includes(s)).join(", ")+". Starting history and live subscriptions.";
         startAllMarketScans();
         return;
       }
@@ -275,7 +289,7 @@
       const reason=event && event.reason ? " · reason: "+event.reason : " · no close reason supplied";
       const clean=event && typeof event.wasClean==="boolean" ? " · clean: "+event.wasClean : "";
       setConnection("error","Disconnected ("+code+")"+reason+clean+" · reconnecting");
-      if($("scannerStatus"))$("scannerStatus").textContent="Socket closed by browser/network/server. Last request: "+state.lastRequest+". Last server message: "+state.lastServerMessage+". Close code "+code+reason+clean+". Reconnecting automatically.";
+      if($("scannerStatus"))$("scannerStatus").textContent="Socket closed by browser/network/server. Last request: "+state.lastRequest+". Last server message: "+state.lastServerMessage+". Active symbols received: "+(state.availableSymbols?state.availableSymbols.length:"not parsed")+". Close code "+code+reason+clean+". Reconnecting automatically.";
       state.reconnectTimer=setTimeout(connect,5000);
     };
   }
