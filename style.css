@@ -9,3 +9,6 @@
 
 .scanner-actions{display:flex;align-items:center;gap:12px;margin:12px 0}.scanner-actions .primary{min-width:190px}.scanner-hint{font-size:10px;color:var(--muted)}.secondary{border:1px solid var(--line);background:#152238;color:var(--text);border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}.secondary:hover{border-color:var(--blue)}
 @media(max-width:520px){.scanner-actions{align-items:stretch;flex-direction:column}.scanner-actions .primary{width:100%}}
+
+/* Keep the multi-market scan private: users see only the final qualified proposal. */
+.market-cards{display:none!important}.market-select-control{display:none!important}
