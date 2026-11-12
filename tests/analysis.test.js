@@ -52,7 +52,7 @@ socket.readyState = FakeWebSocket.OPEN;
 socket.onopen();
 assert.ok(socket.sent.some(x => x.active_symbols === "full"), "socket should request active symbols");
 socket.onmessage({ data: JSON.stringify({
-  active_symbols: ["R_10", "R_25", "R_50", "R_75", "R_100"].map(symbol => ({
+  active_symbols: ["R_10", "R_25", "R_50", "R_75", "R_100", "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V"].map(symbol => ({
     underlying_symbol: symbol, underlying_symbol_name: "Volatility " + symbol.slice(2) + " Index", underlying_symbol_type: "stockindex"
   }))
 }) });
@@ -60,7 +60,7 @@ assert.match(element("market").innerHTML, /Volatility 10 Index/, "market tab sho
 assert.equal(element("market").disabled, true, "market selection should stay disabled until ACCU support is verified");
 const firstContractRequest = socket.sent.filter(x => x.contracts_for);
 assert.equal(firstContractRequest.length, 1, "scanner should check ACCU availability sequentially");
-for (let i = 0; i < 5; i++) {
+for (let i = 0; i < 13; i++) {
   const request = socket.sent.filter(x => x.contracts_for)[i];
   assert.ok(request, "scanner should request the next active symbol after each response");
   socket.onmessage({ data: JSON.stringify({
@@ -69,7 +69,7 @@ for (let i = 0; i < 5; i++) {
   }) });
 }
 // Run the staggered feed timers just as the browser would over time.
-while (socket.sent.filter(x => x.ticks_history).length < 5) {
+while (socket.sent.filter(x => x.ticks_history).length < 13) {
   const nextTimer = scheduledTimeouts.pop();
   assert.equal(typeof nextTimer, "function", "each remaining market should have a scheduled feed request");
   nextTimer();
@@ -77,9 +77,11 @@ while (socket.sent.filter(x => x.ticks_history).length < 5) {
 const historyRequests = socket.sent.filter(x => x.ticks_history);
 const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1);
 assert.equal(element("market").disabled, false, "market selection should unlock after ACCU verification");
-assert.match(element("market").innerHTML, /Volatility 10 Index/, "verified ACCU markets should remain visible in the selector");
-assert.equal(historyRequests.length, 5, "scanner should request history for all five configured markets");
-assert.equal(tickRequests.length, 5, "scanner should subscribe to all five configured markets");
+assert.match(element("market").innerHTML, /Volatility 10 Index/, "verified plain ACCU markets should remain visible in the selector");
+assert.match(element("market").innerHTML, /1HZ10V/, "1-second volatility symbols should be included in the selector");
+assert.match(element("market").innerHTML, /Volatility 10 \(1s\) Index/, "1-second markets should have distinct labels");
+assert.equal(historyRequests.length, 13, "scanner should request history for all five configured markets");
+assert.equal(tickRequests.length, 13, "scanner should subscribe to all five configured markets");
 for (const request of historyRequests) {
   socket.onmessage({ data: JSON.stringify({
     req_id: request.req_id,
@@ -90,9 +92,9 @@ assert.match(element("connectionText").textContent, /history received · waiting
 assert.equal(element("bestMarket").textContent, "Volatility 10 Index");
 assert.equal(element("useRecommended").disabled, false);
 socket.onmessage({ data: JSON.stringify({ tick: { symbol: "R_10", quote: 1000.25, epoch: 301 } }) });
-assert.match(element("connectionText").textContent, /live tick stream confirmed · 1\/5 ACCU markets/i);
+assert.match(element("connectionText").textContent, /live tick stream confirmed · 1\/13 ACCU markets/i);
 assert.equal(element("quote").textContent, "1000.25");
-for (const symbol of ["R_25", "R_50", "R_75", "R_100"]) {
+for (const symbol of ["R_25", "R_50", "R_75", "R_100", "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V"]) {
   socket.onmessage({ data: JSON.stringify({ tick: { symbol, quote: 1010, epoch: 302 } }) });
 }
 assert.equal(element("bestMarket").textContent, "NO SUITABLE MARKET");
