@@ -13,12 +13,12 @@
     const symbol=String(item.underlying_symbol || item.symbol || "").toUpperCase();
     const name=String(item.underlying_symbol_name || item.display_name || "").toLowerCase();
     const type=String(item.underlying_symbol_type || item.symbol_type || "").toLowerCase();
-    return /^R_\\d+$/.test(symbol) || /^1HZ\\d+V$/.test(symbol) || (type==="stockindex" && /volatility/.test(name));
+    return /^R_\d+$/.test(symbol) || /^1HZ\d+V$/.test(symbol) || (type==="stockindex" && /volatility/.test(name));
   }
   function marketDisplayName(detail,symbol) {
     const supplied=detail && (detail.underlying_symbol_name || detail.display_name);
     if(supplied) return supplied;
-    const match=String(symbol).match(/^(?:R_|1HZ)(\\d+)/i);
+    const match=String(symbol).match(/^(?:R_|1HZ)(\d+)/i);
     const value=match ? match[1] : symbol;
     return /^1HZ/i.test(symbol) ? "Volatility "+value+" (1s) Index" : "Volatility "+value+" Index";
   }
