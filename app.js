@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, requestId:1, subscriptionIds:[],
+    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, requestId:1, subscriptionIds:[],
     historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}
   };
   const names = {
@@ -24,8 +24,8 @@
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN) return false;
     const req_id=state.requestId++;
     if(payload.ticks_history)state.historyRequests[req_id]=payload.ticks_history;
-    state.ws.send(JSON.stringify({...payload,req_id}));
-    return true;
+    try { state.ws.send(JSON.stringify({...payload,req_id})); return true; }
+    catch(error) { delete state.historyRequests[req_id]; return false; }
   }
   function startPing() {
     clearInterval(state.pingTimer);
@@ -40,8 +40,11 @@
     forgetSubscriptions();
     state.scanReady=false;
     state.scanData={};
+    state.ticks=[];
+    state.historyLoaded=false;
     const symbols=Object.keys(names).filter(symbol=>state.availableSymbols.includes(symbol));
-    $("scannerStatus").textContent="Scanning "+symbols.length+" Deriv markets · collecting history and live ticks";
+    const missing=Object.keys(names).filter(symbol=>!state.availableSymbols.includes(symbol));
+    $("scannerStatus").textContent="Scanning "+symbols.length+" of "+Object.keys(names).length+" configured Deriv indices · collecting history and live ticks"+(missing.length?" · unavailable: "+missing.join(", "):"");
     $("bestMarket").textContent="Scanning markets…";
     $("bestMarketDetail").textContent="Waiting for enough live observations";
     $("marketCards").innerHTML=symbols.map(symbol=>'<div class="scan-card" id="scan-'+symbol+'"><b>'+names[symbol]+'</b><strong>Loading…</strong><small>Fetching current data</small></div>').join("");
@@ -51,9 +54,10 @@
       return;
     }
     symbols.forEach(symbol=>{
-      state.scanData[symbol]={ticks:[],metrics:null};
-      send({ticks_history:symbol,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
-      send({ticks:symbol,subscribe:1});
+      state.scanData[symbol]={ticks:[],metrics:null,status:"Loading"};
+      const historySent=send({ticks_history:symbol,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
+      const streamSent=send({ticks:symbol,subscribe:1});
+      if(!historySent || !streamSent) state.scanData[symbol].status="Request could not be sent";
     });
     state.scanReady=true;
   }
@@ -90,6 +94,7 @@
     clearTimeout(state.dataTimer);
     state.ticks=[];
     state.historyLoaded=false;
+    state.historyRequests={};
     $("marketName").textContent=names[state.market];
     $("quote").textContent="—";
     $("quoteTime").textContent="Requesting current market data";
@@ -106,11 +111,13 @@
     clearTimeout(state.reconnectTimer);
     clearInterval(state.pingTimer);
     clearTimeout(state.dataTimer);
+    clearTimeout(state.activeSymbolsTimer);
     if(state.ws) {
       try { state.ws.onclose=null; state.ws.close(); } catch(e) {}
     }
     state.connected=false;
     state.subscriptionIds=[];
+    state.historyRequests={};
     state.availableSymbols=null;
     state.historyLoaded=false;
     setConnection("","Connecting to Deriv market feed");
@@ -132,12 +139,12 @@
       $("quote").textContent="—";
       send({active_symbols:"brief"});
       setConnection("connected","Connected to Deriv · checking available markets");
-      state.dataTimer=setTimeout(()=>{
-        if(state.ws===ws && !state.historyLoaded && state.ticks.length===0){
-          setConnection("error","Deriv connected, but market data has not arrived · retrying");
-          requestMarketData();
+      state.activeSymbolsTimer=setTimeout(()=>{
+        if(state.ws===ws && !state.availableSymbols){
+          setConnection("error","Deriv socket opened, but active markets were not returned · reconnecting");
+          try { ws.close(); } catch(error) {}
         }
-      },12000);
+      },10000);
     };
     ws.onmessage=event=>{
       if(state.ws!==ws)return;
@@ -145,13 +152,21 @@
       try { msg=JSON.parse(event.data); } catch(e) { return; }
       if(msg.error) {
         const code=msg.error.code ? " ["+msg.error.code+"]" : "";
-        setConnection("error","Deriv API error"+code+": "+msg.error.message);
-        if($("scannerStatus")) $("scannerStatus").textContent="Deriv rejected the market-data request: "+msg.error.message;
-        if($("bestMarket")) $("bestMarket").textContent="CONNECTION ERROR";
+        const rejectedSymbol=(msg.echo_req && (msg.echo_req.ticks_history || msg.echo_req.ticks)) || "";
+        if(rejectedSymbol && state.scanData[rejectedSymbol]) {
+          state.scanData[rejectedSymbol].status="Deriv error"+code;
+          const card=$("scan-"+rejectedSymbol);
+          if(card)card.innerHTML='<b>'+names[rejectedSymbol]+'</b><strong class="negative">REQUEST REJECTED</strong><small>'+String(msg.error.message||"Market request rejected")+'</small>';
+          $("scannerStatus").textContent=rejectedSymbol+" request rejected"+code+": "+msg.error.message;
+        } else {
+          setConnection("error","Deriv API error"+code+": "+msg.error.message);
+          if($("scannerStatus")) $("scannerStatus").textContent="Deriv rejected a market-data request: "+msg.error.message;
+          if($("bestMarket")) $("bestMarket").textContent="CONNECTION ERROR";
+        }
         return;
       }
       if(msg.active_symbols) {
-        clearTimeout(state.dataTimer);
+        clearTimeout(state.activeSymbolsTimer);
         setConnection("connected","Connected to Deriv · received active market list");
         if(!Array.isArray(msg.active_symbols)) {
           setConnection("error","Deriv returned an invalid active-markets response");
@@ -172,6 +187,7 @@
         const times=msg.history.times||[];
         const values=msg.history.prices.map((p,i)=>({price:Number(p),time:Number(times[i]||Date.now()/1000)})).filter(t=>Number.isFinite(t.price));
         if(symbol && state.scanData[symbol]) {
+          state.scanData[symbol].status="History received";
           state.scanData[symbol].ticks=values;
           if(symbol===state.market)state.ticks=values.slice();
           renderScanner();
@@ -194,6 +210,7 @@
         if(!Number.isFinite(price))return;
         const point={price,time:Number(t.epoch||Date.now()/1000)};
         if(state.scanData[symbol]) {
+          state.scanData[symbol].status="Receiving live ticks";
           const arr=state.scanData[symbol].ticks;
           arr.push(point);
           if(arr.length>600)arr.shift();
@@ -214,6 +231,8 @@
     ws.onclose=event=>{
       if(state.ws!==ws)return;
       state.connected=false;
+      clearTimeout(state.activeSymbolsTimer);
+      clearTimeout(state.dataTimer);
       clearInterval(state.pingTimer);
       const detail=event && event.code ? " ("+event.code+")" : "";
       setConnection("error","Disconnected"+detail+" · reconnecting");
@@ -228,8 +247,13 @@
       render();
       setConnection("connected","Live all-market scan · viewing "+names[state.market]);
     } else {
+      state.ticks=[];
       $("quote").textContent="—";
       $("quoteTime").textContent="Waiting for selected market history";
+      $("tickCount").textContent="0 ticks loaded";
+      $("condition").textContent="Collecting data";
+      $("score").innerHTML="—<em>/100</em>";
+      drawChart();
     }
   }
   function ema(values,period) {
@@ -286,6 +310,9 @@
     const qualified=!bandsExpanding&&!atrRising&&adx<=25&&!spike&&!directional&&trend==="SIDEWAYS"&&score>=75;
     return {last,mid,upper,lower,atr,r,e20,e50,adx,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
   }
+  // Expose pure calculations for repeatable regression tests; no trading actions are exposed.
+  window.AccumulatorAI = Object.freeze({evaluateMarket, rsi, ema});
+
   function calculate() {
     const d=evaluateMarket(state.ticks);
     if(!d)return null;
