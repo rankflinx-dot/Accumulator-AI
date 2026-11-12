@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, activeSymbolDetails:{},
+    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, contractQueue:[], activeSymbolDetails:{},
     historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
   };
   let names = {};
@@ -39,6 +39,15 @@
   function forgetSubscriptions() {
     for(const id of state.subscriptionIds) send({forget:id});
     state.subscriptionIds=[];
+  }
+
+  function requestNextContractCheck() {
+    if(!state.contractQueue.length)return;
+    const symbol=state.contractQueue.shift();
+    const req_id=state.requestId++;
+    state.contractRequests[req_id]=symbol;
+    if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
+    state.ws.send(JSON.stringify({contracts_for:symbol,req_id}));
   }
 
   function startAllMarketScans() {
@@ -218,14 +227,11 @@
         }
         names={};
         state.contractRequests={};
+        state.contractQueue=state.availableSymbols.slice();
         state.pendingContracts=state.availableSymbols.length;
-        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active Deriv markets. Checking each market for the ACCU contract type…";
+        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active Deriv markets. Checking ACCU contract availability sequentially to respect Deriv limits…";
         $("bestMarket").textContent="Checking Accumulator availability…";
-        state.availableSymbols.forEach(symbol=>{
-          const req_id=state.requestId++;
-          state.contractRequests[req_id]=symbol;
-          state.ws.send(JSON.stringify({contracts_for:symbol,req_id}));
-        });
+        requestNextContractCheck();
         return;
       }
       if(msg.contracts_for) {
@@ -256,6 +262,8 @@
           $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled markets from "+state.availableSymbols.length+" active Deriv symbols. Starting all eligible market feeds.";
           setConnection("connected","Deriv confirmed "+eligible.length+" Accumulator markets · loading live data");
           startAllMarketScans();
+        } else {
+          requestNextContractCheck();
         }
         return;
       }
