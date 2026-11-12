@@ -77,7 +77,7 @@ assert.equal(element("startScanner").disabled, false, "scanner button should ena
 element("startScanner").listeners.click();
 assert.equal(element("startScanner").textContent, "Stop AI Scanner", "scanner button should switch to Stop while scanning");
 // Run the staggered feed timers just as the browser would over time.
-while (socket.sent.filter(x => x.ticks_history).length < 13) {
+while (socket.sent.filter(x => x.ticks_history).length < preScannerHistoryCount + 13) {
   const nextTimer = scheduledTimeouts.pop();
   assert.equal(typeof nextTimer, "function", "each remaining market should have a scheduled feed request");
   nextTimer();
