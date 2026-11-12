@@ -112,6 +112,7 @@
     };
   }
   function subscribeMarket() {
+    clearTimeout(state.dataTimer);
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
     if(state.subscriptionId)send({forget:state.subscriptionId});
     state.subscriptionId=null;
