@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0,
-    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set()
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
   };
   const names = {
     R_10:"Volatility 10 Index", R_25:"Volatility 25 Index",
@@ -24,7 +24,7 @@
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN) return false;
     const req_id=state.requestId++;
     if(payload.ticks_history)state.historyRequests[req_id]=payload.ticks_history;
-    try { state.ws.send(JSON.stringify({...payload,req_id})); return true; }
+    try { state.lastRequest=Object.keys(payload)[0]||"unknown"; state.ws.send(JSON.stringify({...payload,req_id})); return true; }
     catch(error) { delete state.historyRequests[req_id]; return false; }
   }
   function startPing() {
@@ -164,8 +164,8 @@
       setConnection("","Request sent · waiting for Deriv market-list response");
       state.activeSymbolsTimer=setTimeout(()=>{
         if(state.ws===ws && !state.availableSymbols){
-          setConnection("error","Deriv socket opened, but active markets were not returned · reconnecting");
-          try { ws.close(); } catch(error) {}
+          setConnection("error","No active-markets response after 10 seconds · socket remains open; last server message: "+state.lastServerMessage);
+          $("scannerStatus").textContent="Connection is open, but Deriv has not returned active_symbols. Last request: "+state.lastRequest+". Last server message: "+state.lastServerMessage+". The socket is being kept open for diagnosis.";
         }
       },10000);
     };
@@ -173,7 +173,8 @@
       if(state.ws!==ws)return;
       state.lastMessageAt=Date.now();
       let msg;
-      try { msg=JSON.parse(event.data); } catch(e) { return; }
+      try { msg=JSON.parse(event.data); } catch(e) { state.lastServerMessage="Non-JSON message received"; setConnection("error","Deriv sent an unreadable response"); return; }
+      state.lastServerMessage=String(msg.msg_type || (msg.error && msg.error.code) || Object.keys(msg).slice(0,4).join(", ") || "empty response");
       if(msg.error) {
         const code=msg.error.code ? " ["+msg.error.code+"]" : "";
         const rejectedSymbol=(msg.echo_req && (msg.echo_req.ticks_history || msg.echo_req.ticks)) || "";
@@ -260,7 +261,7 @@
       }
     };
     ws.onerror=()=>{
-      if(state.ws===ws)setConnection("error","Market feed connection error · retrying");
+      if(state.ws===ws){ setConnection("error","Browser WebSocket error · last server message: "+state.lastServerMessage); if($("scannerStatus"))$("scannerStatus").textContent="WebSocket error. Last request: "+state.lastRequest+". Last server message: "+state.lastServerMessage+". Browser does not expose the detailed handshake error."; }
     };
     ws.onclose=event=>{
       if(state.ws!==ws)return;
@@ -269,8 +270,11 @@
       clearTimeout(state.connectTimer);
       clearTimeout(state.dataTimer);
       clearInterval(state.pingTimer);
-      const detail=event && event.code ? " ("+event.code+")" : "";
-      setConnection("error","Disconnected"+detail+" · reconnecting");
+      const code=event && Number.isFinite(event.code) ? event.code : "unknown";
+      const reason=event && event.reason ? " · reason: "+event.reason : " · no close reason supplied";
+      const clean=event && typeof event.wasClean==="boolean" ? " · clean: "+event.wasClean : "";
+      setConnection("error","Disconnected ("+code+")"+reason+clean+" · reconnecting");
+      if($("scannerStatus"))$("scannerStatus").textContent="Socket closed by browser/network/server. Last request: "+state.lastRequest+". Last server message: "+state.lastServerMessage+". Close code "+code+reason+clean+". Reconnecting automatically.";
       state.reconnectTimer=setTimeout(connect,5000);
     };
   }
