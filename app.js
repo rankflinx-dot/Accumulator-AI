@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, requestId:1, subscriptionIds:[],
-    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}
   };
   const names = {
     R_10:"Volatility 10 Index", R_25:"Volatility 25 Index",
@@ -22,7 +22,9 @@
   }
   function send(payload) {
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN) return false;
-    state.ws.send(JSON.stringify({...payload,req_id:state.requestId++}));
+    const req_id=state.requestId++;
+    if(payload.ticks_history)state.historyRequests[req_id]=payload.ticks_history;
+    state.ws.send(JSON.stringify({...payload,req_id}));
     return true;
   }
   function startPing() {
@@ -156,7 +158,8 @@
         return;
       }
       if(msg.history && msg.history.prices) {
-        const symbol=msg.echo_req && msg.echo_req.ticks_history;
+        const symbol=state.historyRequests[msg.req_id] || (msg.echo_req && msg.echo_req.ticks_history);
+        delete state.historyRequests[msg.req_id];
         const times=msg.history.times||[];
         const values=msg.history.prices.map((p,i)=>({price:Number(p),time:Number(times[i]||Date.now()/1000)})).filter(t=>Number.isFinite(t.price));
         if(symbol && state.scanData[symbol]) {
