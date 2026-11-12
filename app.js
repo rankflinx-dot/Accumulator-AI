@@ -191,11 +191,11 @@
       $("useRecommended").disabled=true;
       return;
     }
-    const qualified=rows.filter(x=>x.metrics && x.metrics.qualified).sort((a,b)=>b.metrics.score-a.metrics.score);
+    const qualified=selectQualifiedMarkets(rows);
     if(qualified.length) {
       const best=qualified[0];
       $("bestMarket").textContent=names[best.symbol];
-      $("bestMarketDetail").textContent="Qualified · stability "+best.metrics.score+"/100 · "+best.metrics.trend+" · ADX "+fmt(best.metrics.adx)+" · ATR "+fmt(best.metrics.atr);
+      $("bestMarketDetail").textContent="Top-ranked · "+(qualified.length>1?"1 of "+qualified.length+" suitable markets":"only suitable market")+" · stability "+best.metrics.score+"/100 · "+best.metrics.trend+" · ADX "+fmt(best.metrics.adx)+" · ATR "+fmt(best.metrics.atr);
       $("scannerStatus").textContent=qualified.length+" of "+rows.length+" markets meet every entry filter. Best qualified market selected by score.";
       $("recommendedMarket").value=best.symbol;
       $("useRecommended").disabled=false;
@@ -488,6 +488,21 @@
     const rs=(gains/period)/(losses/period);
     return 100-100/(1+rs);
   }
+  // Return one best candidate only. Highest suitability score wins; ties favour
+  // weaker directional pressure, then lower ATR relative to price, then symbol order.
+  function selectQualifiedMarkets(rows) {
+    return rows.filter(row=>row.metrics && row.metrics.qualified).sort((a,b)=>{
+      const scoreDiff=b.metrics.score-a.metrics.score;
+      if(scoreDiff) return scoreDiff;
+      const adxDiff=(Number.isFinite(a.metrics.adx)?a.metrics.adx:Infinity)-(Number.isFinite(b.metrics.adx)?b.metrics.adx:Infinity);
+      if(adxDiff) return adxDiff;
+      const aRelativeAtr=(Number.isFinite(a.metrics.atr)?a.metrics.atr:Infinity)/Math.max(Math.abs(a.metrics.mid||0),Number.EPSILON);
+      const bRelativeAtr=(Number.isFinite(b.metrics.atr)?b.metrics.atr:Infinity)/Math.max(Math.abs(b.metrics.mid||0),Number.EPSILON);
+      if(aRelativeAtr!==bRelativeAtr) return aRelativeAtr-bRelativeAtr;
+      return String(a.symbol).localeCompare(String(b.symbol));
+    });
+  }
+
   function evaluateMarket(prices, horizon=5) {
     const p=prices.map(t=>typeof t==="number"?t:t.price),n=p.length;
     if(n<100)return null;
@@ -530,7 +545,7 @@
     return {last,mid,upper,lower,atr,r,e20,e50,adx,momentum,signalWindow,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
   }
   // Expose pure calculations for repeatable regression tests; no trading actions are exposed.
-  window.AccumulatorAI = Object.freeze({evaluateMarket, rsi, ema});
+  window.AccumulatorAI = Object.freeze({evaluateMarket, selectQualifiedMarkets, rsi, ema});
 
   function calculate() {
     const d=evaluateMarket(state.ticks,Number($("timeframe").value)||5);
