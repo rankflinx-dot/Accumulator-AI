@@ -14,6 +14,15 @@ let activeCount = 0;
 let settled = false;
 let discoveryStarted = false;
 let marketFeedsStarted = false;
+let contractQueue = [];
+
+function sendNextContractCheck() {
+  if (!contractQueue.length) return;
+  const symbol = contractQueue.shift();
+  const reqId = 72000 + (activeCount - contractQueue.length - 1);
+  contractRequests.set(reqId, symbol);
+  ws.send(JSON.stringify({ contracts_for: symbol, req_id: reqId }));
+}
 
 const finish = error => {
   if (settled) return;
@@ -64,11 +73,8 @@ ws.addEventListener("message", event => {
       (item?.underlying_symbol || item?.symbol)).filter(Boolean);
     assert.ok(symbols.length > 0, "Deriv must return readable active market symbols");
     console.log("Checking ACCU availability across " + symbols.length + " active Deriv markets");
-    symbols.forEach((symbol, index) => {
-      const reqId = 72000 + index;
-      contractRequests.set(reqId, symbol);
-      ws.send(JSON.stringify({ contracts_for: symbol, req_id: reqId }));
-    });
+    contractQueue = symbols.slice();
+    sendNextContractCheck();
     return;
   }
 
@@ -80,7 +86,9 @@ ws.addEventListener("message", event => {
     if (contracts.some(item => String(item.contract_type || "").toUpperCase() === "ACCU")) {
       eligibleMarkets.add(symbol);
     }
-    if (!marketFeedsStarted && contractRequests.size === 0) {
+    if (contractQueue.length) {
+      sendNextContractCheck();
+    } else if (!marketFeedsStarted && contractRequests.size === 0) {
       marketFeedsStarted = true;
       console.log("Deriv ACCU-enabled symbols:", [...eligibleMarkets]);
       assert.ok(eligibleMarkets.size > 0, "Deriv should report at least one active ACCU market");
