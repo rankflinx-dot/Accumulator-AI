@@ -3,8 +3,8 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, requestId:1, subscriptionId:null,
-    historyLoaded:false
+    reconnectTimer:null, pingTimer:null, dataTimer:null, requestId:1, subscriptionIds:[],
+    historyLoaded:false, availableSymbols:null
   };
   const names = {
     R_10:"Volatility 10 Index", R_25:"Volatility 25 Index",
@@ -29,6 +29,27 @@
     clearInterval(state.pingTimer);
     state.pingTimer=setInterval(()=>send({ping:1}),25000);
   }
+  function forgetSubscriptions() {
+    for(const id of state.subscriptionIds) send({forget:id});
+    state.subscriptionIds=[];
+  }
+  function requestMarketData() {
+    if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
+    clearTimeout(state.dataTimer);
+    state.ticks=[];
+    state.historyLoaded=false;
+    $("marketName").textContent=names[state.market];
+    $("quote").textContent="—";
+    $("quoteTime").textContent="Requesting current market data";
+    setConnection("connected","Loading "+names[state.market]+" · history + live ticks");
+    send({ticks_history:state.market,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
+    send({ticks:state.market,subscribe:1});
+    state.dataTimer=setTimeout(()=>{
+      if(state.ws && state.ws.readyState===WebSocket.OPEN && state.ticks.length===0){
+        setConnection("error","No current ticks received for "+names[state.market]+" · verify symbol availability");
+      }
+    },12000);
+  }
   function connect() {
     clearTimeout(state.reconnectTimer);
     clearInterval(state.pingTimer);
@@ -37,7 +58,8 @@
       try { state.ws.onclose=null; state.ws.close(); } catch(e) {}
     }
     state.connected=false;
-    state.subscriptionId=null;
+    state.subscriptionIds=[];
+    state.availableSymbols=null;
     state.historyLoaded=false;
     setConnection("","Connecting to Deriv market feed");
     let ws;
@@ -56,13 +78,14 @@
       state.ticks=[];
       $("marketName").textContent=names[state.market];
       $("quote").textContent="—";
-      send({ticks_history:state.market,adjust_start_time:1,count:300,end:"latest",style:"ticks",subscribe:1});
+      send({active_symbols:"brief"});
+      setConnection("connected","Connected to Deriv · checking available markets");
       state.dataTimer=setTimeout(()=>{
         if(state.ws===ws && !state.historyLoaded && state.ticks.length===0){
-          setConnection("error","Connected to Deriv, but no history received · trying live ticks");
-          send({ticks:state.market,subscribe:1});
+          setConnection("error","Deriv connected, but market data has not arrived · retrying");
+          requestMarketData();
         }
-      },10000);
+      },12000);
     };
     ws.onmessage=event=>{
       if(state.ws!==ws)return;
@@ -73,6 +96,15 @@
         setConnection("error","Deriv error"+code+": "+msg.error.message);
         return;
       }
+      if(msg.active_symbols) {
+        state.availableSymbols=msg.active_symbols.map(x=>x.symbol);
+        if(!state.availableSymbols.includes(state.market)){
+          setConnection("error",names[state.market]+" is not listed as an active symbol by Deriv");
+          return;
+        }
+        requestMarketData();
+        return;
+      }
       if(msg.history && msg.history.prices) {
         clearTimeout(state.dataTimer);
         const times=msg.history.times||[];
@@ -80,7 +112,7 @@
           price:Number(p),time:Number(times[i]||Date.now()/1000)
         })).filter(t=>Number.isFinite(t.price));
         render();
-        if(msg.subscription)state.subscriptionId=msg.subscription.id;
+        if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
         if(!state.historyLoaded) {
           state.historyLoaded=true;
           setConnection("connected","Loaded "+state.ticks.length+" historical ticks · live feed active");
@@ -88,6 +120,7 @@
         return;
       }
       if(msg.tick) {
+        clearTimeout(state.dataTimer);
         const t=msg.tick;
         if(t.symbol!==state.market)return;
         const price=Number(t.quote);
@@ -114,8 +147,7 @@
   function subscribeMarket() {
     clearTimeout(state.dataTimer);
     if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
-    if(state.subscriptionId)send({forget:state.subscriptionId});
-    state.subscriptionId=null;
+    forgetSubscriptions();
     state.market=$("market").value;
     state.ticks=[];
     state.historyLoaded=false;
@@ -123,13 +155,12 @@
     $("quote").textContent="—";
     $("quoteTime").textContent="Loading market history";
     setConnection("connected","Loading "+names[state.market]);
-    send({ticks_history:state.market,adjust_start_time:1,count:300,end:"latest",style:"ticks",subscribe:1});
-    state.dataTimer=setTimeout(()=>{
-      if(state.ws && state.ws.readyState===WebSocket.OPEN && !state.historyLoaded && state.ticks.length===0){
-        setConnection("error","No history received for "+names[state.market]+" · check market symbol or connection");
-        send({ticks:state.market,subscribe:1});
-      }
-    },10000);
+    if(state.availableSymbols && state.availableSymbols.includes(state.market)) {
+      requestMarketData();
+    } else {
+      send({active_symbols:"brief"});
+      setConnection("connected","Checking "+names[state.market]+" availability on Deriv");
+    }
   }
   function ema(values,period) {
     if(values.length<period)return NaN;
