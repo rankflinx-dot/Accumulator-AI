@@ -46,6 +46,7 @@ ws.addEventListener("message", event => {
   if (msg.msg_type === "active_symbols" || Array.isArray(msg.active_symbols)) {
     const list = Array.isArray(msg.active_symbols) ? msg.active_symbols : [];
     activeCount = list.length;
+    console.log("Deriv active_symbols response sample:", JSON.stringify(list.slice(0, 3)));
     const symbols = list.map(item => typeof item === "string" ? item : item?.symbol).filter(Boolean);
     chosenSymbol = symbols.find(s => s === "R_10") || symbols.find(s => s === "1HZ100V") || symbols[0];
     if (!chosenSymbol) return finish(new Error("active_symbols returned " + activeCount + " rows but no readable symbol"));
