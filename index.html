@@ -19,7 +19,8 @@
         <div class="feed-label"><span class="pulse"></span> PUBLIC LIVE TICKS</div>
       </section>
       <section class="panel scanner-panel">
-        <div class="panel-heading"><div><h2>Volatility index scanner</h2><p>Discovers plain and 1-second Deriv volatility indices, verifies Accumulator (ACCU) support for each, and checks your no-trade filters</p></div><span class="live-tag">ELIGIBLE INDICES</span></div>
+        <div class="panel-heading"><div><h2>Volatility index scanner</h2><p>Connects to Deriv automatically, verifies Accumulator support, then scans eligible plain and 1-second indices when started</p></div><span class="live-tag">ELIGIBLE INDICES</span></div>
+        <div class="scanner-actions"><button id="startScanner" class="primary" disabled>Waiting for Deriv connection…</button><span class="scanner-hint">Public market data · no API token required</span></div>
         <div class="best-market"><div><span class="eyebrow">BEST QUALIFIED MARKET</span><strong id="bestMarket">Waiting for Deriv market data…</strong><small id="bestMarketDetail">No recommendation until every required filter is checked</small></div><button id="useRecommended" class="primary" disabled>Use market</button><input id="recommendedMarket" type="hidden" value=""></div>
         <p id="scannerStatus" class="scanner-status">Connecting to Deriv and preparing market scan…</p>
         <div id="marketCards" class="market-cards"><div class="scan-card">Waiting for market data…</div></div>
@@ -29,7 +30,7 @@
         <label>Market<select id="market"><option value="">Discovering volatility indices…</option></select></label>
         <label>Analysis timeframe<select id="timeframe"><option value="1">1 tick</option><option value="5" selected>5 ticks</option><option value="10">10 ticks</option><option value="20">20 ticks</option></select></label>
         <label>Growth rate<select id="growth"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select></label>
-        <button id="scanBtn" class="primary">Analyze market <span>↗</span></button>
+        <button id="scanBtn" class="secondary">Analyze selected market <span>↗</span></button>
       </section>
       <section class="metrics">
         <article class="metric panel"><span>LIVE QUOTE</span><strong id="quote">—</strong><small id="quoteTime">Waiting for ticks</small></article>
@@ -70,6 +71,6 @@
       <footer><span>Accumulator AI · Independent analysis tool</span><span>Market data via Deriv public WebSocket · No trades are placed</span></footer>
     </main>
   </div>
-  <script src="app.js?v=8bfa390"></script>
+  <script src="app.js?v=ai-scanner-1"></script>
 </body>
 </html>
