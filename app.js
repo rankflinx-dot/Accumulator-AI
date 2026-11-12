@@ -59,7 +59,7 @@
     $("useRecommended").disabled=true;
     state.historyLoaded=false;
     const symbols=Object.keys(names);
-    $("scannerStatus").textContent="Scanning all "+symbols.length+" Deriv markets that offer Accumulator (ACCU) contracts · collecting history and live ticks";
+    $("scannerStatus").textContent="Scanning all "+symbols.length+" Deriv indices that offer Accumulator (ACCU) contracts · collecting history and live ticks";
     $("bestMarket").textContent="Scanning markets…";
     $("bestMarketDetail").textContent="Waiting for enough live observations";
     $("marketCards").innerHTML=symbols.map(symbol=>'<div class="scan-card" id="scan-'+symbol+'"><b>'+names[symbol]+'</b><strong>Loading…</strong><small>Fetching current data</small></div>').join("");
@@ -173,7 +173,7 @@
       state.ticks=[];
       $("marketName").textContent=names[state.market];
       $("quote").textContent="—";
-      send({active_symbols:"brief"});
+      send({active_symbols:"full"});
       setConnection("","Request sent · waiting for Deriv market-list response");
       state.activeSymbolsTimer=setTimeout(()=>{
         if(state.ws===ws && !state.availableSymbols){
@@ -213,11 +213,13 @@
         }
         // Deriv identifies markets using underlying_symbol and supplies a display name.
         state.activeSymbolDetails={};
+        // Only index instruments are candidates; then each is checked for ACCU.
         state.availableSymbols=msg.active_symbols.map(x=>{
-          if(typeof x==="string") return x;
-          const symbol=x && (x.underlying_symbol || x.symbol);
-          if(symbol) state.activeSymbolDetails[symbol]=x;
-          return symbol;
+          if(!x || typeof x==="string") return null;
+          const symbol=x.underlying_symbol || x.symbol;
+          const symbolType=String(x.underlying_symbol_type || x.symbol_type || "").toLowerCase();
+          if(symbol && symbolType==="stockindex") state.activeSymbolDetails[symbol]=x;
+          return symbol && symbolType==="stockindex" ? symbol : null;
         }).filter(Boolean);
         if(!state.availableSymbols.length){
           setConnection("error","Active-symbol response received, but no symbol names were readable");
@@ -229,7 +231,7 @@
         state.contractRequests={};
         state.contractQueue=state.availableSymbols.slice();
         state.pendingContracts=state.availableSymbols.length;
-        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active Deriv markets. Checking ACCU contract availability sequentially to respect Deriv limits…";
+        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active Deriv indices. Checking ACCU contract availability sequentially to respect Deriv limits…";
         $("bestMarket").textContent="Checking Accumulator availability…";
         requestNextContractCheck();
         return;
@@ -248,7 +250,7 @@
           const eligible=Object.keys(names).sort((a,b)=>(names[a]||a).localeCompare(names[b]||b));
           if(!eligible.length) {
             setConnection("connected","Deriv connected · no active ACCU markets found");
-            $("scannerStatus").textContent="Checked "+state.availableSymbols.length+" active markets. None currently offer contract_type ACCU.";
+            $("scannerStatus").textContent="Checked "+state.availableSymbols.length+" active indices. None currently offer contract_type ACCU.";
             $("bestMarket").textContent="NO ACCUMULATOR MARKETS";
             $("bestMarketDetail").textContent="No eligible market was returned by Deriv contracts_for.";
             $("marketCards").innerHTML="<div class=\"scan-card\"><b>Contract availability checked</b><strong>NO ACCU MARKETS</strong><small>No market currently offers Accumulator contracts</small></div>";
@@ -259,8 +261,8 @@
           $("market").innerHTML=eligible.map(s=>'<option value="'+s+'">'+names[s]+' ('+s+')</option>').join("");
           $("market").value=state.market;
           $("marketName").textContent=names[state.market];
-          $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled markets from "+state.availableSymbols.length+" active Deriv symbols. Starting all eligible market feeds.";
-          setConnection("connected","Deriv confirmed "+eligible.length+" Accumulator markets · loading live data");
+          $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled indices from "+state.availableSymbols.length+" active Deriv indices. Starting all eligible index feeds.";
+          setConnection("connected","Deriv confirmed "+eligible.length+" Accumulator indices · loading live data");
           startAllMarketScans();
         } else {
           requestNextContractCheck();
