@@ -196,7 +196,7 @@
       const best=qualified[0];
       $("bestMarket").textContent=names[best.symbol];
       $("bestMarketDetail").textContent="Top-ranked · "+(qualified.length>1?"1 of "+qualified.length+" suitable markets":"only suitable market")+" · stability "+best.metrics.score+"/100 · "+best.metrics.trend+" · ADX "+fmt(best.metrics.adx)+" · ATR "+fmt(best.metrics.atr);
-      $("scannerStatus").textContent=qualified.length+" of "+rows.length+" markets meet every entry filter. Best qualified market selected by score.";
+      $("scannerStatus").textContent=qualified.length+" of "+rows.length+" markets meet every entry filter. Proposing one best market: highest score, then lower ADX and lower relative ATR as tie-breakers.";
       $("recommendedMarket").value=best.symbol;
       $("useRecommended").disabled=false;
     } else {
