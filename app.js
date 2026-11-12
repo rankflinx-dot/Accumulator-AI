@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, requestId:1, subscriptionIds:[],
+    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, reconnectAttempts:0,
     historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}
   };
   const names = {
@@ -29,7 +29,15 @@
   }
   function startPing() {
     clearInterval(state.pingTimer);
-    state.pingTimer=setInterval(()=>send({ping:1}),25000);
+    state.pingTimer=setInterval(()=>{
+      if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
+      if(state.lastMessageAt && Date.now()-state.lastMessageAt>45000){
+        setConnection("error","Deriv data feed timed out · reconnecting automatically");
+        try { state.ws.close(); } catch(e) {}
+        return;
+      }
+      send({ping:1});
+    },15000);
   }
   function forgetSubscriptions() {
     for(const id of state.subscriptionIds) send({forget:id});
@@ -114,6 +122,7 @@
     clearInterval(state.pingTimer);
     clearTimeout(state.dataTimer);
     clearTimeout(state.activeSymbolsTimer);
+    clearTimeout(state.connectTimer);
     if(state.ws) {
       try { state.ws.onclose=null; state.ws.close(); } catch(e) {}
     }
@@ -122,7 +131,8 @@
     state.historyRequests={};
     state.availableSymbols=null;
     state.historyLoaded=false;
-    setConnection("","Connecting to Deriv market feed");
+    state.lastMessageAt=0;
+    setConnection("","Connecting to Deriv automatically · waiting for market data");
     let ws;
     try { ws=new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089"); }
     catch(e) {
@@ -131,10 +141,19 @@
       return;
     }
     state.ws=ws;
+    state.connectTimer=setTimeout(()=>{
+      if(state.ws===ws && ws.readyState!==WebSocket.OPEN){
+        setConnection("error","Deriv connection timed out · retrying automatically");
+        try { ws.close(); } catch(e) {}
+      }
+    },12000);
     ws.onopen=()=>{
       if(state.ws!==ws)return;
       state.connected=true;
-      setConnection("connected","Connected · loading "+state.market);
+      clearTimeout(state.connectTimer);
+      state.reconnectAttempts=0;
+      state.lastMessageAt=Date.now();
+      setConnection("connected","Connected to Deriv · waiting for market data");
       startPing();
       state.ticks=[];
       $("marketName").textContent=names[state.market];
@@ -150,6 +169,7 @@
     };
     ws.onmessage=event=>{
       if(state.ws!==ws)return;
+      state.lastMessageAt=Date.now();
       let msg;
       try { msg=JSON.parse(event.data); } catch(e) { return; }
       if(msg.error) {
@@ -176,6 +196,7 @@
           return;
         }
         state.availableSymbols=msg.active_symbols.map(x=>x.symbol).filter(Boolean);
+        if(!state.availableSymbols.length){setConnection("error","Deriv returned no active markets · retrying");try{ws.close();}catch(e){}return;}
         if(!state.availableSymbols.includes(state.market)){
           const fallback=Object.keys(names).find(symbol=>state.availableSymbols.includes(symbol));
           if(fallback){
@@ -241,6 +262,7 @@
       if(state.ws!==ws)return;
       state.connected=false;
       clearTimeout(state.activeSymbolsTimer);
+      clearTimeout(state.connectTimer);
       clearTimeout(state.dataTimer);
       clearInterval(state.pingTimer);
       const detail=event && event.code ? " ("+event.code+")" : "";
@@ -404,5 +426,8 @@
     $("historyRows").innerHTML='<tr><td colspan="7" class="empty">No readings yet.</td></tr>';
   });
   window.addEventListener("resize",drawChart);
+  window.addEventListener("online",()=>{setConnection("","Internet restored · reconnecting to Deriv");connect();});
+  window.addEventListener("offline",()=>setConnection("error","Internet unavailable · waiting to reconnect"));
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden && (!state.ws || state.ws.readyState!==WebSocket.OPEN)){setConnection("","Reconnecting to Deriv market feed");connect();}});
   connect();
 })();
