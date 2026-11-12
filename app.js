@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, marketFeedTimer:null, marketFeedQueue:[], requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, contractQueue:[], activeSymbolDetails:{},
-    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, scannerRequested:false, scannerRunning:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
   };
   let names = {};
   const fmt = n => Number.isFinite(n) ? n.toFixed(2) : "—";
@@ -85,12 +85,21 @@
     $("market").disabled=false;
     $("market").value=state.market;
     $("marketName").textContent=names[state.market];
-    $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled volatility indices (plain + 1s). Starting all eligible index feeds.";
-    setConnection("connected","Deriv confirmed "+eligible.length+" Accumulator volatility indices · loading live data");
-    startAllMarketScans();
+    $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled volatility indices (plain + 1s). Press Start AI Scanner to begin.";
+    $("bestMarket").textContent="READY TO SCAN";
+    $("bestMarketDetail").textContent="Deriv connection is ready. Start the scanner to evaluate every eligible index.";
+    $("startScanner").disabled=false;
+    $("startScanner").textContent=state.scannerRequested?"Resume AI Scanner":"Start AI Scanner";
+    setConnection("connected","Deriv connected · "+eligible.length+" Accumulator indices verified");
+    if(state.scannerRequested) startAllMarketScans();
   }
 
   function startAllMarketScans() {
+    if(!state.ws || state.ws.readyState!==WebSocket.OPEN || !Object.keys(names).length)return;
+    state.scannerRequested=true;
+    state.scannerRunning=true;
+    $("startScanner").disabled=false;
+    $("startScanner").textContent="Stop AI Scanner";
     forgetSubscriptions();
     state.scanReady=false;
     state.scanData={};
@@ -136,7 +145,21 @@
     };
     sendNextMarketFeed();
   }
+  function stopAllMarketScans() {
+    state.scannerRequested=false;
+    state.scannerRunning=false;
+    clearTimeout(state.marketFeedTimer);
+    state.marketFeedQueue=[];
+    forgetSubscriptions();
+    $("startScanner").disabled=!state.connected || !Object.keys(names).length;
+    $("startScanner").textContent="Start AI Scanner";
+    $("scannerStatus").textContent="AI scanner stopped. Deriv remains connected; press Start AI Scanner to scan again.";
+    $("bestMarket").textContent="SCANNER STOPPED";
+    $("bestMarketDetail").textContent="No market recommendation is active.";
+    $("useRecommended").disabled=true;
+  }
   function renderScanner() {
+    if(!state.scannerRunning)return;
     const horizon=Number($("timeframe").value)||5;
     const rows=Object.entries(state.scanData).map(([symbol,data])=>({symbol,data,metrics:evaluateMarket(data.ticks,horizon)}));
     rows.forEach(row=>{
@@ -557,6 +580,18 @@
   }
   $("market").addEventListener("change",subscribeMarket);
   $("timeframe").addEventListener("change",()=>{renderScanner();render();});
+  $("startScanner").addEventListener("click",()=>{
+    if(state.scannerRunning){stopAllMarketScans();return;}
+    if(!state.connected || !state.ws || state.ws.readyState!==WebSocket.OPEN){
+      $("scannerStatus").textContent="Waiting for Deriv connection and Accumulator market verification.";
+      return;
+    }
+    if(!Object.keys(names).length){
+      $("scannerStatus").textContent="No verified ACCU-enabled volatility indices are available.";
+      return;
+    }
+    startAllMarketScans();
+  });
   $("useRecommended").addEventListener("click",()=>{const symbol=$("recommendedMarket").value;if(!symbol||!state.scanData[symbol]||!state.scanData[symbol].metrics||!state.scanData[symbol].metrics.qualified)return;$("market").value=symbol;state.market=symbol;state.ticks=state.scanData[symbol].ticks.slice();$("marketName").textContent=names[symbol];render();window.scrollTo({top:0,behavior:"smooth"});});
   $("reconnectBtn").addEventListener("click",connect);
   $("scanBtn").addEventListener("click",()=>{render();addSnapshot();});
