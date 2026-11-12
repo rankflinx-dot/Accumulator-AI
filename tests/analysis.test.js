@@ -130,11 +130,11 @@ const ranked = api.selectQualifiedMarkets([
   { symbol: "R_75", metrics: { qualified: false, score: 100, adx: 1, atr: 0, mid: 1000 } }
 ]);
 assert.equal(ranked[0].symbol, "R_50", "highest score wins; lower ADX breaks a score tie");
-assert.deepEqual(ranked.map(row => row.symbol), ["R_50", "R_25", "R_10"], "only qualified markets should be ranked");
+assert.equal(Array.from(ranked, row => row.symbol).join(","), "R_50,R_25,R_10", "only qualified markets should be ranked");
 assert.deepEqual(api.selectQualifiedMarkets([
   { symbol: "R_25", metrics: { qualified: true, score: 95, adx: 20, atr: 5, mid: 1000 } },
   { symbol: "R_10", metrics: { qualified: true, score: 95, adx: 20, atr: 2, mid: 1000 } }
-]).map(row => row.symbol), ["R_10", "R_25"], "lower relative ATR breaks a complete score and ADX tie");
+]).map(row => row.symbol).join(","), "R_10,R_25", "lower relative ATR breaks a complete score and ADX tie");
 assert.equal(api.selectQualifiedMarkets([{symbol:"R_10",metrics:{qualified:false,score:100}}]).length, 0);
 
 const ticks = values => values.map((price, i) => ({ price, time: i }));
