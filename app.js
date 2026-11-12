@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, reconnectAttempts:0,
+    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0,
     historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}
   };
   const names = {
@@ -31,7 +31,7 @@
     clearInterval(state.pingTimer);
     state.pingTimer=setInterval(()=>{
       if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
-      if(state.lastMessageAt && Date.now()-state.lastMessageAt>45000){
+      if((state.lastMessageAt && Date.now()-state.lastMessageAt>45000) || (state.lastTickAt && Date.now()-state.lastTickAt>60000)){
         setConnection("error","Deriv data feed timed out · reconnecting automatically");
         try { state.ws.close(); } catch(e) {}
         return;
@@ -132,6 +132,7 @@
     state.availableSymbols=null;
     state.historyLoaded=false;
     state.lastMessageAt=0;
+    state.lastTickAt=0;
     setConnection("","Connecting to Deriv automatically · waiting for market data");
     let ws;
     try { ws=new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089"); }
@@ -234,6 +235,7 @@
         return;
       }
       if(msg.tick) {
+        state.lastTickAt=Date.now();
         clearTimeout(state.dataTimer);
         if($("scannerStatus")) $("scannerStatus").textContent="Connected to Deriv · receiving live tick data";
         const t=msg.tick, symbol=t.symbol, price=Number(t.quote);
