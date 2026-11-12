@@ -242,10 +242,20 @@
           return;
         }
         names={};
+        // Populate the market tab immediately with the discovered volatility
+        // indices. Keep selection disabled until Deriv confirms ACCU support.
+        for(const symbol of state.availableSymbols) {
+          const detail=state.activeSymbolDetails[symbol]||{};
+          names[symbol]=detail.underlying_symbol_name || detail.display_name || symbol;
+        }
+        const marketSelect=$("market");
+        marketSelect.disabled=true;
+        marketSelect.innerHTML=state.availableSymbols.map(symbol=>'<option value="'+symbol+'" disabled>'+names[symbol]+' ('+symbol+') · checking ACCU support…</option>').join("");
+        $("marketName").textContent=names[state.availableSymbols[0]] || "Volatility index";
         state.contractRequests={};
         state.contractQueue=state.availableSymbols.slice();
         state.pendingContracts=state.availableSymbols.length;
-        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active Deriv indices. Checking ACCU contract availability sequentially to respect Deriv limits…";
+        $("scannerStatus").textContent="Found "+state.availableSymbols.length+" active volatility indices. Checking which ones support Accumulator (ACCU) contracts…";
         $("bestMarket").textContent="Checking Accumulator availability…";
         requestNextContractCheck();
         return;
@@ -258,11 +268,18 @@
         if(symbol && hasAccumulator) {
           const detail=state.activeSymbolDetails[symbol]||{};
           names[symbol]=detail.underlying_symbol_name || detail.display_name || symbol;
+          const option=$("market").querySelector('option[value="'+symbol+'"]');
+          if(option) { option.textContent=names[symbol]+" ("+symbol+")"; option.disabled=false; }
+        } else if(symbol) {
+          const option=$("market").querySelector('option[value="'+symbol+'"]');
+          if(option) option.remove();
         }
         state.pendingContracts=Math.max(0,state.pendingContracts-1);
         if(state.pendingContracts===0) {
           const eligible=Object.keys(names).sort((a,b)=>(names[a]||a).localeCompare(names[b]||b));
           if(!eligible.length) {
+            $("market").disabled=true;
+            $("market").innerHTML='<option value="">No volatility indices support ACCU</option>';
             setConnection("connected","Deriv connected · no active ACCU markets found");
             $("scannerStatus").textContent="Checked "+state.availableSymbols.length+" active indices. None currently offer contract_type ACCU.";
             $("bestMarket").textContent="NO ACCUMULATOR MARKETS";
@@ -273,6 +290,7 @@
           const first=eligible[0];
           state.market=eligible.includes(state.market)?state.market:first;
           $("market").innerHTML=eligible.map(s=>'<option value="'+s+'">'+names[s]+' ('+s+')</option>').join("");
+          $("market").disabled=false;
           $("market").value=state.market;
           $("marketName").textContent=names[state.market];
           $("scannerStatus").textContent="Verified "+eligible.length+" ACCU-enabled indices from "+state.availableSymbols.length+" active Deriv indices. Starting all eligible index feeds.";
