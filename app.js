@@ -367,20 +367,34 @@
     };
   }
   function subscribeMarket() {
-    state.market=$("market").value;
-    $("marketName").textContent=names[state.market];
-    if(state.scanData[state.market]) {
-      state.ticks=state.scanData[state.market].ticks.slice();
+    const selected=$("market").value;
+    if(!selected || !Object.prototype.hasOwnProperty.call(names,selected))return;
+    state.market=selected;
+    $("marketName").textContent=names[selected];
+    $("chartCaption").innerHTML="Live tick history · <span id=\"marketName\">"+names[selected]+"</span>";
+    const marketData=state.scanData[selected];
+    if(marketData && marketData.ticks.length) {
+      state.ticks=marketData.ticks.slice();
       render();
-      setConnection("connected","Live all-market scan · viewing "+names[state.market]);
+      setConnection("connected","Live all-market scan · viewing "+names[selected]);
+      $("scannerStatus").textContent="Viewing "+names[selected]+" · "+state.liveSymbols.size+"/"+Object.keys(names).length+" eligible indices streaming";
     } else {
       state.ticks=[];
       $("quote").textContent="—";
-      $("quoteTime").textContent="Waiting for selected market history";
+      $("quoteTime").textContent="Waiting for "+names[selected]+" market history";
       $("tickCount").textContent="0 ticks loaded";
       $("condition").textContent="Collecting data";
+      $("conditionHint").textContent="Waiting for selected volatility index data";
       $("score").innerHTML="—<em>/100</em>";
+      $("atr").textContent="—";$("atr14").textContent="—";
+      $("bb").textContent="—";$("bbDetail").textContent="Band width";
+      $("rsi").textContent="—";$("rsiDetail").textContent="Momentum";
+      $("adx").textContent="—";$("adxDetail").textContent="Directional strength estimate";
+      $("ema").textContent="—";$("emaDetail").textContent="Trend alignment";
+      $("spike").textContent="—";$("spikeDetail").textContent="Unusual tick movement";
+      $("signalExplanation").textContent="Waiting for "+names[selected]+" price history and live ticks.";
       drawChart();
+      setConnection("connected","Live all-market scan · loading "+names[selected]);
     }
   }
   function ema(values,period) {
