@@ -30,7 +30,6 @@ jobs:
         run: node tests/analysis.test.js
       - name: Test real Deriv public WebSocket connection
         id: deriv-live-test
-        continue-on-error: true
         run: node tests/deriv-live-connection.test.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
