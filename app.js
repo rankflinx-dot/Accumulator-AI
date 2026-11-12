@@ -72,7 +72,7 @@
       $("scannerStatus").textContent="Checked "+state.availableSymbols.length+" active volatility indices (plain and 1s). None currently offer contract_type ACCU.";
       $("bestMarket").textContent="NO ACCUMULATOR MARKETS";
       $("bestMarketDetail").textContent="Deriv returned no eligible plain or 1-second volatility indices.";
-      $("marketCards").innerHTML="<div class=\\"scan-card\\"><b>Contract availability checked</b><strong>NO ACCU MARKETS</strong><small>No plain or 1s volatility index currently offers Accumulator contracts</small></div>";
+      $("marketCards").innerHTML="<div class=\"scan-card\"><b>Contract availability checked</b><strong>NO ACCU MARKETS</strong><small>No plain or 1s volatility index currently offers Accumulator contracts</small></div>";
       return;
     }
     const first=eligible[0];
