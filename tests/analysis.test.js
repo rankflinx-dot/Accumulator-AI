@@ -23,7 +23,7 @@ function element(id) {
   return elements.get(id);
 }
 class FakeWebSocket {
-  constructor() { this.readyState = 0; this.sent = []; FakeWebSocket.instances.push(this); }
+  constructor(url) { this.url = url; this.readyState = 0; this.sent = []; FakeWebSocket.instances.push(this); }
   send(payload) { this.sent.push(JSON.parse(payload)); }
   close() { this.readyState = 3; }
 }
@@ -46,6 +46,7 @@ assert.ok(api, "analysis API should be exposed for tests");
 // Exercise the complete public-feed startup and five-market subscription flow.
 const socket = FakeWebSocket.instances[0];
 assert.ok(socket, "app should create a Deriv WebSocket");
+assert.equal(socket.url, "wss://api.derivws.com/trading/v1/options/ws/public", "scanner must use Deriv public endpoint without a test App ID");
 socket.readyState = FakeWebSocket.OPEN;
 socket.onopen();
 assert.ok(socket.sent.some(x => x.active_symbols === "brief"), "socket should request active symbols");
@@ -62,10 +63,11 @@ for (const request of historyRequests) {
     history: { prices: Array(300).fill(1000), times: Array.from({ length: 300 }, (_, i) => i) }
   }) });
 }
-assert.match(element("connectionText").textContent, /scanning 5 markets/i);
+assert.match(element("connectionText").textContent, /history received · waiting for live tick streams/i);
 assert.equal(element("bestMarket").textContent, "Volatility 10 Index");
 assert.equal(element("useRecommended").disabled, false);
 socket.onmessage({ data: JSON.stringify({ tick: { symbol: "R_10", quote: 1000.25, epoch: 301 } }) });
+assert.match(element("connectionText").textContent, /live tick stream confirmed · 1\/5 markets/i);
 assert.equal(element("quote").textContent, "1000.25");
 for (const symbol of ["R_25", "R_50", "R_75", "R_100"]) {
   socket.onmessage({ data: JSON.stringify({ tick: { symbol, quote: 1010, epoch: 302 } }) });
