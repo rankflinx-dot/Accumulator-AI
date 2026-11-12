@@ -107,6 +107,10 @@ element("market").value = "R_50";
 element("market").listeners.change();
 assert.equal(element("marketName").textContent, "Volatility 50 Index", "user should be able to switch repeatedly between eligible indices");
 assert.equal(element("quote").textContent, "1010.00", "each selected index should show its own live quote");
+element("market").value = "1HZ75V";
+element("market").listeners.change();
+assert.equal(element("marketName").textContent, "Volatility 75 (1s) Index", "the user should be able to select a 1-second index separately from the plain index");
+assert.equal(element("quote").textContent, "1010.00", "the selected 1-second index should show its own quote");
 
 
 const ticks = values => values.map((price, i) => ({ price, time: i }));
