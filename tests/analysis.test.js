@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const elements = new Map();
+const scheduledTimeouts = [];
 function element(id) {
   if (!elements.has(id)) {
     elements.set(id, {
@@ -35,7 +36,7 @@ const context = {
   document: { getElementById: element, addEventListener() {}, hidden: false },
   WebSocket: FakeWebSocket,
   console,
-  setTimeout: () => 1, clearTimeout() {},
+  setTimeout: callback => { scheduledTimeouts.push(callback); return scheduledTimeouts.length; }, clearTimeout() {},
   setInterval: () => 1, clearInterval() {},
   Date, Math, Number, Object, Array, String, JSON
 };
@@ -64,6 +65,12 @@ for (let i = 0; i < 5; i++) {
     req_id: request.req_id,
     contracts_for: { available: [{ contract_type: "ACCU" }] }
   }) });
+}
+// Run the staggered feed timers just as the browser would over time.
+while (socket.sent.filter(x => x.ticks_history).length < 5) {
+  const nextTimer = scheduledTimeouts.pop();
+  assert.equal(typeof nextTimer, "function", "each remaining market should have a scheduled feed request");
+  nextTimer();
 }
 const historyRequests = socket.sent.filter(x => x.ticks_history);
 const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1);
