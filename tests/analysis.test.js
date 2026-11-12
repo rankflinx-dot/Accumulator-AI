@@ -51,8 +51,18 @@ socket.readyState = FakeWebSocket.OPEN;
 socket.onopen();
 assert.ok(socket.sent.some(x => x.active_symbols === "brief"), "socket should request active symbols");
 socket.onmessage({ data: JSON.stringify({
-  active_symbols: ["R_10", "R_25", "R_50", "R_75", "R_100"].map(symbol => ({ symbol }))
+  active_symbols: ["R_10", "R_25", "R_50", "R_75", "R_100"].map(symbol => ({
+    underlying_symbol: symbol, underlying_symbol_name: "Volatility " + symbol.slice(2) + " Index"
+  }))
 }) });
+const contractRequests = socket.sent.filter(x => x.contracts_for);
+assert.equal(contractRequests.length, 5, "scanner should check every active symbol for ACCU availability");
+for (const request of contractRequests) {
+  socket.onmessage({ data: JSON.stringify({
+    req_id: request.req_id,
+    contracts_for: { available: [{ contract_type: "ACCU" }] }
+  }) });
+}
 const historyRequests = socket.sent.filter(x => x.ticks_history);
 const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1);
 assert.equal(historyRequests.length, 5, "scanner should request history for all five configured markets");
