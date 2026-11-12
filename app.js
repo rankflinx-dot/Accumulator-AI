@@ -175,8 +175,15 @@
         }
         state.availableSymbols=msg.active_symbols.map(x=>x.symbol).filter(Boolean);
         if(!state.availableSymbols.includes(state.market)){
-          setConnection("error",names[state.market]+" is not listed as an active symbol by Deriv");
-          return;
+          const fallback=Object.keys(names).find(symbol=>state.availableSymbols.includes(symbol));
+          if(fallback){
+            state.market=fallback;
+            $("market").value=fallback;
+            $("marketName").textContent=names[fallback];
+            setConnection("connected",names[fallback]+" selected · scanning available indices");
+          } else {
+            setConnection("error","None of the configured volatility indices are active on Deriv");
+          }
         }
         startAllMarketScans();
         return;
