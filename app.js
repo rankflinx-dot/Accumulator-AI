@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, marketFeedTimer:null, marketFeedQueue:[], requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, contractQueue:[], activeSymbolDetails:{},
-    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, scannerRequested:false, scannerRunning:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, scannerRequested:false, scannerRunning:false, historyRequests:{}, liveSymbols:new Set(), recommendedSymbol:null, recommendationLocked:false, recommendationInvalidated:false, lastServerMessage:"No server message received", lastRequest:""
   };
   let names = {};
   const fmt = n => Number.isFinite(n) ? n.toFixed(2) : "—";
@@ -105,6 +105,9 @@
     state.scanReady=false;
     state.scanData={};
     state.liveSymbols.clear();
+    state.recommendedSymbol=null;
+    state.recommendationLocked=false;
+    state.recommendationInvalidated=false;
     state.ticks=[];
     $("useRecommended").disabled=true;
     state.historyLoaded=false;
@@ -192,13 +195,30 @@
       return;
     }
     const qualified=selectQualifiedMarkets(rows);
-    if(qualified.length) {
-      const best=qualified[0];
-      $("bestMarket").textContent=names[best.symbol];
-      $("bestMarketDetail").textContent="Top-ranked · "+(qualified.length>1?"1 of "+qualified.length+" suitable markets":"only suitable market")+" · stability "+best.metrics.score+"/100 · "+best.metrics.trend+" · ADX "+fmt(best.metrics.adx)+" · ATR "+fmt(best.metrics.atr);
-      $("scannerStatus").textContent=qualified.length+" of "+rows.length+" markets meet every entry filter. Proposing one best market: highest score, then lower ADX and lower relative ATR as tie-breakers.";
-      $("recommendedMarket").value=best.symbol;
-      $("useRecommended").disabled=false;
+    // Select the highest-ranked market once, then keep that choice for this
+    // scan session. Live updates must never make the recommendation jump.
+    // If the chosen market stops qualifying, withdraw the recommendation and
+    // wait for the user to restart the scanner before selecting another.
+    if(!state.recommendationLocked && qualified.length) {
+      state.recommendedSymbol=qualified[0].symbol;
+      state.recommendationLocked=true;
+    }
+    if(state.recommendationLocked) {
+      const selected=rows.find(row=>row.symbol===state.recommendedSymbol);
+      if(selected && selected.metrics && selected.metrics.qualified) {
+        $("bestMarket").textContent=names[selected.symbol];
+        $("bestMarketDetail").textContent="Locked best market · stability "+selected.metrics.score+"/100 · "+selected.metrics.trend+" · ADX "+fmt(selected.metrics.adx)+" · ATR "+fmt(selected.metrics.atr)+(qualified.length>1?" · "+qualified.length+" markets currently suitable":"");
+        $("scannerStatus").textContent="Recommendation locked on "+names[selected.symbol]+". It was the highest-ranked market when selected. Other markets will not replace it during this scan. Restart the scanner to rank all markets again.";
+        $("recommendedMarket").value=selected.symbol;
+        $("useRecommended").disabled=false;
+      } else {
+        state.recommendationInvalidated=true;
+        $("bestMarket").textContent="NO SUITABLE MARKET";
+        $("bestMarketDetail").textContent="The previously selected best market no longer passes every filter. No automatic switch will be made.";
+        $("scannerStatus").textContent="Recommendation withdrawn · "+names[state.recommendedSymbol]+" is no longer suitable. Restart the scanner to perform a fresh full ranking.";
+        $("recommendedMarket").value="";
+        $("useRecommended").disabled=true;
+      }
     } else {
       $("bestMarket").textContent="NO SUITABLE MARKET";
       $("bestMarketDetail").textContent="No market currently passes every required filter. Do not enter.";
