@@ -115,7 +115,7 @@
     state.historyLoaded=false;
     setConnection("","Connecting to Deriv market feed");
     let ws;
-    try { ws=new WebSocket("wss://api.derivws.com/trading/v1/options/ws/public"); }
+    try { ws=new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089"); }
     catch(e) {
       setConnection("error","Could not create WebSocket · retrying");
       state.reconnectTimer=setTimeout(connect,5000);
@@ -145,11 +145,14 @@
       try { msg=JSON.parse(event.data); } catch(e) { return; }
       if(msg.error) {
         const code=msg.error.code ? " ["+msg.error.code+"]" : "";
-        setConnection("error","Deriv error"+code+": "+msg.error.message);
+        setConnection("error","Deriv API error"+code+": "+msg.error.message);
+        if($("scannerStatus")) $("scannerStatus").textContent="Deriv rejected the market-data request: "+msg.error.message;
+        if($("bestMarket")) $("bestMarket").textContent="CONNECTION ERROR";
         return;
       }
       if(msg.active_symbols) {
         clearTimeout(state.dataTimer);
+        setConnection("connected","Connected to Deriv · received active market list");
         if(!Array.isArray(msg.active_symbols)) {
           setConnection("error","Deriv returned an invalid active-markets response");
           $("scannerStatus").textContent="Could not read the active markets list from Deriv. Reconnecting…";
@@ -186,6 +189,7 @@
       }
       if(msg.tick) {
         clearTimeout(state.dataTimer);
+        if($("scannerStatus")) $("scannerStatus").textContent="Connected to Deriv · receiving live tick data";
         const t=msg.tick, symbol=t.symbol, price=Number(t.quote);
         if(!Number.isFinite(price))return;
         const point={price,time:Number(t.epoch||Date.now()/1000)};
