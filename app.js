@@ -199,8 +199,10 @@
           $("scannerStatus").textContent="Could not read the active markets list from Deriv. Reconnecting…";
           return;
         }
+        // The current Deriv public endpoint returns "underlying_symbol"
+        // in active_symbols entries (not the legacy "symbol" property).
         state.availableSymbols=msg.active_symbols
-          .map(x=>typeof x==="string"?x:(x && (x.symbol || x.underlying_symbol)))
+          .map(x=>typeof x==="string"?x:(x && (x.underlying_symbol || x.symbol)))
           .filter(Boolean);
         const activePreview=state.availableSymbols.slice(0,12).join(", ") || "no symbol names found";
         if(!state.availableSymbols.length){
