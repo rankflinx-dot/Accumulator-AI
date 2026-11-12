@@ -31,10 +31,11 @@
     clearInterval(state.pingTimer);
     state.pingTimer=setInterval(()=>{
       if(!state.ws || state.ws.readyState!==WebSocket.OPEN)return;
-      if((state.lastMessageAt && Date.now()-state.lastMessageAt>45000) || (state.lastTickAt && Date.now()-state.lastTickAt>60000)){
-        setConnection("error","Deriv data feed timed out · reconnecting automatically");
-        try { state.ws.close(); } catch(e) {}
-        return;
+      if(state.lastMessageAt && Date.now()-state.lastMessageAt>45000){
+        // Do not close a socket merely because the public feed has gone quiet.
+        // A local close here produced browser code 1005 and hid the original
+        // missing-history/tick problem behind an endless reconnect loop.
+        setConnection("error","Deriv socket is still open · no new server message for 45 seconds · waiting for market data");
       }
       send({ping:1});
     },15000);
