@@ -44,6 +44,8 @@ assert.equal(stable.trend, "SIDEWAYS");
 assert.equal(stable.spike, false);
 assert.equal(stable.qualified, true);
 assert.equal(stable.score, 100);
+assert.equal(api.evaluateMarket(ticks(flat), 1).signalWindow, 1);
+assert.equal(api.evaluateMarket(ticks(flat), 20).signalWindow, 20);
 
 const rising = api.evaluateMarket(ticks(Array.from({ length: 300 }, (_, i) => 1000 + i * 0.5)));
 assert.equal(rising.trend, "BULLISH");
