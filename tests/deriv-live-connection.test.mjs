@@ -69,9 +69,12 @@ ws.addEventListener("message", event => {
     discoveryStarted = true;
     const list = Array.isArray(msg.active_symbols) ? msg.active_symbols : [];
     activeCount = list.length;
-    const symbols = list.filter(item => item && typeof item === "object" &&
-      String(item.underlying_symbol_type || item.symbol_type || "").toLowerCase() === "stockindex")
-      .map(item => item.underlying_symbol || item.symbol).filter(Boolean);
+    const symbols = [...new Set(list.filter(item => item && typeof item === "object").filter(item => {
+      const symbol = String(item.underlying_symbol || item.symbol || "").toUpperCase();
+      const name = String(item.underlying_symbol_name || item.display_name || "").toLowerCase();
+      const type = String(item.underlying_symbol_type || item.symbol_type || "").toLowerCase();
+      return /^R_\\d+$/.test(symbol) || /^1HZ\\d+V$/.test(symbol) || (type === "stockindex" && /volatility/.test(name));
+    }).map(item => item.underlying_symbol || item.symbol).filter(Boolean))];
     assert.ok(symbols.length > 0, "Deriv must return readable active market symbols");
     console.log("Checking ACCU availability across " + symbols.length + " active Deriv markets");
     contractQueue = symbols.slice();
