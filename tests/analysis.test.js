@@ -69,7 +69,10 @@ for (let i = 0; i < 13; i++) {
   }) });
 }
 // Connection and ACCU discovery must finish without starting the scanner.
-assert.equal(socket.sent.filter(x => x.ticks_history).length, 0, "scanner must wait for the user to press its button");
+const preScannerHistoryCount = socket.sent.filter(x => x.ticks_history).length;
+const preScannerTickCount = socket.sent.filter(x => x.ticks && x.subscribe === 1).length;
+assert.equal(preScannerHistoryCount, 1, "automatic connection may load the selected chart market before scanning");
+assert.equal(preScannerTickCount, 1, "automatic connection may subscribe to the selected chart market before scanning");
 assert.equal(element("startScanner").disabled, false, "scanner button should enable after ACCU verification");
 element("startScanner").listeners.click();
 assert.equal(element("startScanner").textContent, "Stop AI Scanner", "scanner button should switch to Stop while scanning");
@@ -79,8 +82,8 @@ while (socket.sent.filter(x => x.ticks_history).length < 13) {
   assert.equal(typeof nextTimer, "function", "each remaining market should have a scheduled feed request");
   nextTimer();
 }
-const historyRequests = socket.sent.filter(x => x.ticks_history);
-const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1);
+const historyRequests = socket.sent.filter(x => x.ticks_history).slice(preScannerHistoryCount);
+const tickRequests = socket.sent.filter(x => x.ticks && x.subscribe === 1).slice(preScannerTickCount);
 assert.equal(element("market").disabled, false, "market selection should unlock after ACCU verification");
 assert.match(element("market").innerHTML, /Volatility 10 Index/, "verified plain ACCU markets should remain visible in the selector");
 assert.match(element("market").innerHTML, /1HZ10V/, "1-second volatility symbols should be included in the selector");
