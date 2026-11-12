@@ -92,6 +92,7 @@
     $("startScanner").textContent=state.scannerRequested?"Resume AI Scanner":"Start AI Scanner";
     setConnection("connected","Deriv connected · "+eligible.length+" Accumulator indices verified");
     if(state.scannerRequested) startAllMarketScans();
+    else requestMarketData();
   }
 
   function startAllMarketScans() {
