@@ -99,20 +99,28 @@ for (const request of historyRequests) {
 assert.match(element("connectionText").textContent, /history received · waiting for live tick streams/i);
 assert.equal(element("bestMarket").textContent, "ANALYSIS IN PROGRESS", "scanner must not propose a market before every eligible index has live data");
 assert.equal(element("useRecommended").disabled, true, "recommendation must stay disabled during partial analysis");
-socket.onmessage({ data: JSON.stringify({ tick: { symbol: "R_10", quote: 1000.25, epoch: 301 } }) });
+socket.onmessage({ data: JSON.stringify({ tick: { symbol: "R_10", quote: 1000, epoch: 301 } }) });
 assert.match(element("connectionText").textContent, /live tick stream confirmed · 1\/13 ACCU markets/i);
 assert.equal(element("bestMarket").textContent, "ANALYSIS IN PROGRESS", "one live market must not trigger a premature recommendation");
 assert.equal(element("useRecommended").disabled, true);
-assert.equal(element("quote").textContent, "1000.25");
+assert.equal(element("quote").textContent, "1000.00");
 for (const symbol of ["R_25", "R_50", "R_75", "R_100", "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V"]) {
-  socket.onmessage({ data: JSON.stringify({ tick: { symbol, quote: 1010, epoch: 302 } }) });
+  socket.onmessage({ data: JSON.stringify({ tick: { symbol, quote: 1000, epoch: 302 } }) });
 }
-assert.equal(element("bestMarket").textContent, "NO SUITABLE MARKET");
-assert.equal(element("useRecommended").disabled, true, "scanner must disable recommendations when no market qualifies");
+assert.notEqual(element("bestMarket").textContent, "NO SUITABLE MARKET", "flat stable markets should produce a suitable recommendation");
+const lockedRecommendation = element("recommendedMarket").value;
+assert.ok(lockedRecommendation, "scanner should save its top-ranked market");
+assert.equal(element("useRecommended").disabled, false, "best market should be available for selection");
+// A later live spike disqualifies the chosen market. The scanner must withdraw
+// the recommendation rather than jump to another market mid-session.
+socket.onmessage({ data: JSON.stringify({ tick: { symbol: lockedRecommendation, quote: 2000, epoch: 303 } }) });
+assert.equal(element("bestMarket").textContent, "NO SUITABLE MARKET", "a disqualified locked market must be withdrawn");
+assert.equal(element("recommendedMarket").value, "", "scanner must not silently switch to a different market");
+assert.equal(element("useRecommended").disabled, true, "withdrawn recommendation must not be selectable");
 element("market").value = "R_25";
 element("market").listeners.change();
 assert.equal(element("marketName").textContent, "Volatility 25 Index");
-assert.equal(element("quote").textContent, "1010.00", "switching markets should immediately show the selected index quote");
+assert.equal(element("quote").textContent, "1000.00", "switching markets should immediately show the selected index quote");
 element("market").value = "R_50";
 element("market").listeners.change();
 assert.equal(element("marketName").textContent, "Volatility 50 Index", "user should be able to switch repeatedly between eligible indices");
