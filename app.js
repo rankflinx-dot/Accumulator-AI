@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
-    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, contractQueue:[], activeSymbolDetails:{},
+    reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, marketFeedTimer:null, marketFeedQueue:[], requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0, contractRequests:{}, pendingContracts:0, contractQueue:[], activeSymbolDetails:{},
     historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set(), lastServerMessage:"No server message received", lastRequest:""
   };
   let names = {};
@@ -76,13 +76,25 @@
     state.market=symbols.includes(previous)?previous:symbols[0];
     select.value=state.market;
     $("marketName").textContent=names[state.market];
-    symbols.forEach(symbol=>{
-      state.scanData[symbol]={ticks:[],metrics:null,status:"Loading"};
+    // Stagger requests instead of flooding the public socket with every
+    // history request and tick subscription at once.
+    clearTimeout(state.marketFeedTimer);
+    state.marketFeedQueue=symbols.slice();
+    state.scanReady=true;
+    const sendNextMarketFeed=()=>{
+      if(!state.ws || state.ws.readyState!==WebSocket.OPEN || !state.marketFeedQueue.length)return;
+      const symbol=state.marketFeedQueue.shift();
+      state.scanData[symbol]={ticks:[],metrics:null,status:"Requesting history and live feed"};
       const historySent=send({ticks_history:symbol,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
       const streamSent=send({ticks:symbol,subscribe:1});
       if(!historySent || !streamSent) state.scanData[symbol].status="Request could not be sent";
-    });
-    state.scanReady=true;
+      if(state.marketFeedQueue.length) {
+        state.marketFeedTimer=setTimeout(sendNextMarketFeed,350);
+      } else {
+        state.marketFeedTimer=null;
+      }
+    };
+    sendNextMarketFeed();
   }
   function renderScanner() {
     const horizon=Number($("timeframe").value)||5;
@@ -137,6 +149,8 @@
     clearTimeout(state.dataTimer);
     clearTimeout(state.activeSymbolsTimer);
     clearTimeout(state.connectTimer);
+    clearTimeout(state.marketFeedTimer);
+    state.marketFeedQueue=[];
     if(state.ws) {
       try { state.ws.onclose=null; state.ws.close(); } catch(e) {}
     }
