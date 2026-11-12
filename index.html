@@ -11,7 +11,7 @@
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="#"><span class="brand-mark">A</span><span>Accumulator<span class="muted">AI</span><small>DERIV MARKET INTELLIGENCE</small></span></a>
-      <div class="top-actions"><span class="connection"><i id="connectionDot"></i><span id="connectionText">Connecting to market feed</span></span><button class="icon-btn" id="reconnectBtn" title="Reconnect market feed">↻</button></div>
+      <div class="top-actions"><span class="connection"><i id="connectionDot"></i><span id="connectionText">Connecting to Deriv automatically</span></span><button class="icon-btn" id="reconnectBtn" title="Reconnect market feed">↻</button></div>
     </header>
     <main>
       <section class="intro">
@@ -20,7 +20,7 @@
       </section>
       <section class="panel scanner-panel">
         <div class="panel-heading"><div><h2>AI market scanner</h2><p>Compares every available volatility index against your required no-trade filters</p></div><span class="live-tag">5 INDICES</span></div>
-        <div class="best-market"><div><span class="eyebrow">BEST QUALIFIED MARKET</span><strong id="bestMarket">Waiting for Deriv data…</strong><small id="bestMarketDetail">No recommendation until every required filter is checked</small></div><button id="useRecommended" class="primary" disabled>Use market</button><input id="recommendedMarket" type="hidden" value=""></div>
+        <div class="best-market"><div><span class="eyebrow">BEST QUALIFIED MARKET</span><strong id="bestMarket">Waiting for Deriv market data…</strong><small id="bestMarketDetail">No recommendation until every required filter is checked</small></div><button id="useRecommended" class="primary" disabled>Use market</button><input id="recommendedMarket" type="hidden" value=""></div>
         <p id="scannerStatus" class="scanner-status">Connecting to Deriv and preparing market scan…</p>
         <div id="marketCards" class="market-cards"><div class="scan-card">Waiting for market data…</div></div>
         <p class="footnote">A market is proposed only when Bollinger width is not expanding, ATR is not rising sharply, ADX is at or below 25, no spike is detected, and the trend is sideways. If none pass, the result is NO TRADE.</p>
@@ -70,6 +70,6 @@
       <footer><span>Accumulator AI · Independent analysis tool</span><span>Market data via Deriv public WebSocket · No trades are placed</span></footer>
     </main>
   </div>
-  <script src="app.js?v=6034d67"></script>
+  <script src="app.js?v=9b7d2ee"></script>
 </body>
 </html>
