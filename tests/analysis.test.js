@@ -100,6 +100,11 @@ assert.equal(element("useRecommended").disabled, true, "scanner must disable rec
 element("market").value = "R_25";
 element("market").listeners.change();
 assert.equal(element("marketName").textContent, "Volatility 25 Index");
+assert.equal(element("quote").textContent, "1010.00", "switching markets should immediately show the selected index quote");
+element("market").value = "R_50";
+element("market").listeners.change();
+assert.equal(element("marketName").textContent, "Volatility 50 Index", "user should be able to switch repeatedly between eligible indices");
+assert.equal(element("quote").textContent, "1010.00", "each selected index should show its own live quote");
 
 
 const ticks = values => values.map((price, i) => ({ price, time: i }));
