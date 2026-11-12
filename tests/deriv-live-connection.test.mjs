@@ -35,7 +35,7 @@ const finish = error => {
   } else {
     console.log("LIVE DERIV ACCUMULATOR MARKET TEST PASSED:", {
       endpoint,
-      activeSymbols: activeCount,
+      activeSymbols: activeCount,\n      indexSymbolsChecked: contractRequests.size + eligibleMarkets.size,
       accumulatorMarkets: [...eligibleMarkets],
       historyResponses: [...seenHistory],
       liveTickResponses: [...seenTicks]
@@ -51,7 +51,7 @@ const timer = setTimeout(() => {
 }, 60000);
 
 ws.addEventListener("open", () => {
-  ws.send(JSON.stringify({ active_symbols: "brief", req_id: 71001 }));
+  ws.send(JSON.stringify({ active_symbols: "full", req_id: 71001 }));
 });
 
 ws.addEventListener("message", event => {
@@ -69,8 +69,9 @@ ws.addEventListener("message", event => {
     discoveryStarted = true;
     const list = Array.isArray(msg.active_symbols) ? msg.active_symbols : [];
     activeCount = list.length;
-    const symbols = list.map(item => typeof item === "string" ? item :
-      (item?.underlying_symbol || item?.symbol)).filter(Boolean);
+    const symbols = list.filter(item => item && typeof item === "object" &&
+      String(item.underlying_symbol_type || item.symbol_type || "").toLowerCase() === "stockindex")
+      .map(item => item.underlying_symbol || item.symbol).filter(Boolean);
     assert.ok(symbols.length > 0, "Deriv must return readable active market symbols");
     console.log("Checking ACCU availability across " + symbols.length + " active Deriv markets");
     contractQueue = symbols.slice();
