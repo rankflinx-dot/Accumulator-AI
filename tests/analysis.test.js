@@ -94,10 +94,12 @@ for (const request of historyRequests) {
   }) });
 }
 assert.match(element("connectionText").textContent, /history received · waiting for live tick streams/i);
-assert.equal(element("bestMarket").textContent, "Volatility 10 Index");
-assert.equal(element("useRecommended").disabled, false);
+assert.equal(element("bestMarket").textContent, "ANALYSIS IN PROGRESS", "scanner must not propose a market before every eligible index has live data");
+assert.equal(element("useRecommended").disabled, true, "recommendation must stay disabled during partial analysis");
 socket.onmessage({ data: JSON.stringify({ tick: { symbol: "R_10", quote: 1000.25, epoch: 301 } }) });
 assert.match(element("connectionText").textContent, /live tick stream confirmed · 1\/13 ACCU markets/i);
+assert.equal(element("bestMarket").textContent, "ANALYSIS IN PROGRESS", "one live market must not trigger a premature recommendation");
+assert.equal(element("useRecommended").disabled, true);
 assert.equal(element("quote").textContent, "1000.25");
 for (const symbol of ["R_25", "R_50", "R_75", "R_100", "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V"]) {
   socket.onmessage({ data: JSON.stringify({ tick: { symbol, quote: 1010, epoch: 302 } }) });
