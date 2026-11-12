@@ -1,1 +1,68 @@
-
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Accumulator AI | Deriv</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#"><span class="brand-mark">A</span><span>Accumulator<span class="muted">AI</span><small>DERIV MARKET INTELLIGENCE</small></span></a>
+      <div class="top-actions"><span class="connection"><i id="connectionDot"></i><span id="connectionText">Connecting to market feed</span></span><button class="icon-btn" id="reconnectBtn" title="Reconnect market feed">↻</button></div>
+    </header>
+    <main>
+      <section class="intro">
+        <div><p class="eyebrow">LIVE MARKET MONITOR</p><h1>Accumulator analysis</h1><p class="sub">Read volatility, momentum and trend conditions before considering an Accumulator contract.</p></div>
+        <div class="feed-label"><span class="pulse"></span> PUBLIC LIVE TICKS</div>
+      </section>
+      <section class="controls panel">
+        <label>Market<select id="market"><option value="R_10">Volatility 10 Index</option><option value="R_25">Volatility 25 Index</option><option value="R_50">Volatility 50 Index</option><option value="R_75">Volatility 75 Index</option><option value="R_100">Volatility 100 Index</option></select></label>
+        <label>Analysis timeframe<select id="timeframe"><option value="1">1 tick</option><option value="5" selected>5 ticks</option><option value="10">10 ticks</option><option value="20">20 ticks</option></select></label>
+        <label>Growth rate<select id="growth"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select></label>
+        <button id="scanBtn" class="primary">Analyze market <span>↗</span></button>
+      </section>
+      <section class="metrics">
+        <article class="metric panel"><span>LIVE QUOTE</span><strong id="quote">—</strong><small id="quoteTime">Waiting for ticks</small></article>
+        <article class="metric panel"><span>MARKET CONDITION</span><strong id="condition" class="neutral">Collecting data</strong><small id="conditionHint">Need more price history</small></article>
+        <article class="metric panel"><span>STABILITY SCORE</span><strong id="score">—<em>/100</em></strong><small>Rule-based condition score, not win probability</small></article>
+        <article class="metric panel"><span>VOLATILITY (ATR)</span><strong id="atr">—</strong><small id="atrHint">Average absolute tick movement</small></article>
+      </section>
+      <section class="main-grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading"><div><h2>Price movement</h2><p id="chartCaption">Live tick history · <span id="marketName">Volatility 10 Index</span></p></div><span class="live-tag">LIVE</span></div>
+          <canvas id="priceChart" height="250"></canvas>
+          <div class="chart-legend"><span><i class="legend-price"></i>Price</span><span><i class="legend-ema"></i>EMA 20</span><span id="tickCount">0 ticks loaded</span></div>
+        </article>
+        <article class="panel signal-panel">
+          <div class="panel-heading"><div><h2>Accumulator assessment</h2><p>Conditions, not a trade instruction</p></div></div>
+          <div id="signal" class="signal neutral"><span class="signal-icon">…</span><div><strong>WAIT</strong><small>Collecting market data</small></div></div>
+          <div class="score-track"><div id="scoreBar"></div></div>
+          <p id="signalExplanation" class="explanation">The analyzer needs a sufficient sample of live ticks before evaluating conditions.</p>
+          <div class="risk-note"><b>Risk reminder</b><span>Accumulator contracts can terminate when price breaches the contract boundary. A calm reading does not guarantee survival.</span></div>
+        </article>
+      </section>
+      <section class="panel indicators-panel">
+        <div class="panel-heading"><div><h2>Technical indicators</h2><p>Calculated from the live tick stream</p></div><span class="updated" id="updated">Not yet updated</span></div>
+        <div class="indicator-grid">
+          <div class="indicator"><span>Bollinger Bands (20, 2)</span><strong id="bb">—</strong><small id="bbDetail">Band width</small></div>
+          <div class="indicator"><span>RSI (14)</span><strong id="rsi">—</strong><small id="rsiDetail">Momentum</small></div>
+          <div class="indicator"><span>ATR (14)</span><strong id="atr14">—</strong><small>Average true range proxy</small></div>
+          <div class="indicator"><span>ADX proxy (14)</span><strong id="adx">—</strong><small id="adxDetail">Directional strength estimate</small></div>
+          <div class="indicator"><span>EMA 20 / EMA 50</span><strong id="ema">—</strong><small id="emaDetail">Trend alignment</small></div>
+          <div class="indicator"><span>Spike monitor</span><strong id="spike">—</strong><small id="spikeDetail">Unusual tick movement</small></div>
+        </div>
+      </section>
+      <section class="panel history-panel">
+        <div class="panel-heading"><div><h2>Recent market readings</h2><p>Latest analysis snapshots</p></div><button id="clearHistory" class="text-btn">Clear history</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Time</th><th>Market</th><th>Quote</th><th>RSI</th><th>ADX*</th><th>Score</th><th>Assessment</th></tr></thead><tbody id="historyRows"><tr><td colspan="7" class="empty">No readings yet. Connect to a market to begin.</td></tr></tbody></table></div>
+        <p class="footnote">*ADX is an approximate directional-strength measure calculated from tick changes, not a full candle-based ADX.</p>
+      </section>
+      <footer><span>Accumulator AI · Independent analysis tool</span><span>Market data via Deriv public WebSocket · No trades are placed</span></footer>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
