@@ -250,8 +250,11 @@
       state.ticks=[];
       $("marketName").textContent=names[state.market];
       $("quote").textContent="—";
+      // Probe the public endpoint immediately, then request the market list.
+      // This distinguishes a socket handshake from a functioning API response.
+      send({ping:1});
       send({active_symbols:"full"});
-      setConnection("","Request sent · waiting for Deriv market-list response");
+      setConnection("","Ping and active-symbol requests sent · waiting for Deriv response");
       state.activeSymbolsTimer=setTimeout(()=>{
         if(state.ws===ws && !state.availableSymbols){
           setConnection("error","No active-markets response after 10 seconds · socket remains open; last server message: "+state.lastServerMessage);
