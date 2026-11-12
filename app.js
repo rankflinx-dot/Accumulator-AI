@@ -4,7 +4,7 @@
   const state = {
     ws:null, ticks:[], market:"R_10", connected:false, history:[],
     reconnectTimer:null, pingTimer:null, dataTimer:null, activeSymbolsTimer:null, connectTimer:null, requestId:1, subscriptionIds:[], lastMessageAt:0, lastTickAt:0, reconnectAttempts:0,
-    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}
+    historyLoaded:false, availableSymbols:null, scanData:{}, scanReady:false, historyRequests:{}, liveSymbols:new Set()
   };
   const names = {
     R_10:"Volatility 10 Index", R_25:"Volatility 25 Index",
@@ -48,6 +48,7 @@
     forgetSubscriptions();
     state.scanReady=false;
     state.scanData={};
+    state.liveSymbols.clear();
     state.ticks=[];
     $("useRecommended").disabled=true;
     state.historyLoaded=false;
@@ -135,7 +136,7 @@
     state.lastTickAt=0;
     setConnection("","Connecting to Deriv automatically · waiting for market data");
     let ws;
-    try { ws=new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089"); }
+    try { ws=new WebSocket("wss://api.derivws.com/trading/v1/options/ws/public"); }
     catch(e) {
       setConnection("error","Could not create WebSocket · retrying");
       state.reconnectTimer=setTimeout(connect,5000);
@@ -154,13 +155,13 @@
       clearTimeout(state.connectTimer);
       state.reconnectAttempts=0;
       state.lastMessageAt=Date.now();
-      setConnection("connected","Connected to Deriv · waiting for market data");
+      setConnection("","WebSocket open · waiting for Deriv response");
       startPing();
       state.ticks=[];
       $("marketName").textContent=names[state.market];
       $("quote").textContent="—";
       send({active_symbols:"brief"});
-      setConnection("connected","Connected to Deriv · checking available markets");
+      setConnection("","Request sent · waiting for Deriv market-list response");
       state.activeSymbolsTimer=setTimeout(()=>{
         if(state.ws===ws && !state.availableSymbols){
           setConnection("error","Deriv socket opened, but active markets were not returned · reconnecting");
@@ -190,7 +191,7 @@
       }
       if(msg.active_symbols) {
         clearTimeout(state.activeSymbolsTimer);
-        setConnection("connected","Connected to Deriv · received active market list");
+        setConnection("connected","Deriv API responded · active market list received");
         if(!Array.isArray(msg.active_symbols)) {
           setConnection("error","Deriv returned an invalid active-markets response");
           $("scannerStatus").textContent="Could not read the active markets list from Deriv. Reconnecting…";
@@ -225,7 +226,7 @@
           if(symbol===state.market)render();
           if(Object.values(state.scanData).every(x=>x.ticks.length>=100)) {
             state.historyLoaded=true;
-            setConnection("connected","Deriv live · scanning "+Object.keys(state.scanData).length+" markets");
+            setConnection("connected","Market history received · waiting for live tick streams");
           }
         } else {
           state.ticks=values;
@@ -237,11 +238,12 @@
       if(msg.tick) {
         state.lastTickAt=Date.now();
         clearTimeout(state.dataTimer);
-        if($("scannerStatus")) $("scannerStatus").textContent="Connected to Deriv · receiving live tick data";
+        if($("scannerStatus")) $("scannerStatus").textContent="Deriv live tick received · "+state.liveSymbols.size+"/"+Object.keys(names).length+" markets streaming";
         const t=msg.tick, symbol=t.symbol, price=Number(t.quote);
         if(!Number.isFinite(price))return;
         const point={price,time:Number(t.epoch||Date.now()/1000)};
         if(state.scanData[symbol]) {
+          state.liveSymbols.add(symbol);
           state.scanData[symbol].status="Receiving live ticks";
           const arr=state.scanData[symbol].ticks;
           arr.push(point);
@@ -251,7 +253,7 @@
         if(symbol===state.market) {
           state.ticks.push(point);
           if(state.ticks.length>600)state.ticks.shift();
-          setConnection("connected","Live · "+names[state.market]+" · "+state.ticks.length+" ticks");
+          setConnection("connected","Live tick stream confirmed · "+state.liveSymbols.size+"/"+Object.keys(names).length+" markets");
           render();
         }
         if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
