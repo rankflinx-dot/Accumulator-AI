@@ -106,30 +106,43 @@
         return;
       }
       if(msg.history && msg.history.prices) {
-        clearTimeout(state.dataTimer);
+        const symbol=msg.echo_req && msg.echo_req.ticks_history;
         const times=msg.history.times||[];
-        state.ticks=msg.history.prices.map((p,i)=>({
-          price:Number(p),time:Number(times[i]||Date.now()/1000)
-        })).filter(t=>Number.isFinite(t.price));
-        render();
-        if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
-        if(!state.historyLoaded) {
-          state.historyLoaded=true;
-          setConnection("connected","Loaded "+state.ticks.length+" historical ticks · live feed active");
+        const values=msg.history.prices.map((p,i)=>({price:Number(p),time:Number(times[i]||Date.now()/1000)})).filter(t=>Number.isFinite(t.price));
+        if(symbol && state.scanData[symbol]) {
+          state.scanData[symbol].ticks=values;
+          if(symbol===state.market)state.ticks=values.slice();
+          renderScanner();
+          if(symbol===state.market)render();
+          if(Object.values(state.scanData).every(x=>x.ticks.length>=100)) {
+            state.historyLoaded=true;
+            setConnection("connected","Deriv live · scanning "+Object.keys(state.scanData).length+" markets");
+          }
+        } else {
+          state.ticks=values;
+          render();
         }
+        if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
         return;
       }
       if(msg.tick) {
         clearTimeout(state.dataTimer);
-        const t=msg.tick;
-        if(t.symbol!==state.market)return;
-        const price=Number(t.quote);
+        const t=msg.tick, symbol=t.symbol, price=Number(t.quote);
         if(!Number.isFinite(price))return;
-        state.ticks.push({price,time:Number(t.epoch||Date.now()/1000)});
-        if(state.ticks.length>600)state.ticks.shift();
+        const point={price,time:Number(t.epoch||Date.now()/1000)};
+        if(state.scanData[symbol]) {
+          const arr=state.scanData[symbol].ticks;
+          arr.push(point);
+          if(arr.length>600)arr.shift();
+          renderScanner();
+        }
+        if(symbol===state.market) {
+          state.ticks.push(point);
+          if(state.ticks.length>600)state.ticks.shift();
+          setConnection("connected","Live · "+names[state.market]+" · "+state.ticks.length+" ticks");
+          render();
+        }
         if(msg.subscription && msg.subscription.id && !state.subscriptionIds.includes(msg.subscription.id))state.subscriptionIds.push(msg.subscription.id);
-        setConnection("connected","Live · "+names[state.market]+" · "+state.ticks.length+" ticks");
-        render();
       }
     };
     ws.onerror=()=>{
@@ -180,38 +193,46 @@
     const rs=(gains/period)/(losses/period);
     return 100-100/(1+rs);
   }
-  function calculate() {
-    const p=state.ticks.map(t=>t.price),n=p.length;
-    if(n<50)return null;
-    const last=p[n-1],prev=p[n-2],recent=p.slice(-20);
+  function evaluateMarket(prices) {
+    const p=prices.map(t=>typeof t==="number"?t:t.price),n=p.length;
+    if(n<100)return null;
+    const last=p[n-1],prev=p[n-2],recent=p.slice(-20),prior=p.slice(-40,-20);
     const mid=mean(recent),sd=std(recent),upper=mid+2*sd,lower=mid-2*sd;
-    const changes=p.slice(1).map((v,i)=>Math.abs(v-p[i]));
-    const atr=mean(changes.slice(-14)),r=rsi(p,14),e20=ema(p,20),e50=ema(p,50);
-    const direction=p.slice(-15).slice(1).map((v,i)=>v-p[n-15+i]);
-    const net=Math.abs(direction.reduce((a,b)=>a+b,0));
-    const path=direction.reduce((a,b)=>a+Math.abs(b),0);
-    const adx=path?100*net/path:0;
+    const priorMid=mean(prior),priorWidth=priorMid?((4*std(prior))/Math.abs(priorMid))*100:0;
     const width=mid?((upper-lower)/Math.abs(mid))*100:0;
+    const changes=p.slice(1).map((v,i)=>Math.abs(v-p[i]));
+    const atr=mean(changes.slice(-14)),baseAtr=mean(changes.slice(-42,-14));
+    const atrRising=baseAtr>0&&atr>baseAtr*1.25;
+    const bandsExpanding=priorWidth>0&&width>priorWidth*1.15;
+    const r=rsi(p,14),e20=ema(p,20),e50=ema(p,50);
+    const direction=p.slice(-15).slice(1).map((v,i)=>v-p[n-15+i]);
+    const net=direction.reduce((a,b)=>a+b,0),path=direction.reduce((a,b)=>a+Math.abs(b),0);
+    const adx=path?100*Math.abs(net)/path:0;
+    const emaGap=last?Math.abs(e20-e50)/Math.abs(last):0;
+    let trend="SIDEWAYS";
+    if(adx>25&&e20>e50&&net>0)trend="BULLISH";
+    else if(adx>25&&e20<e50&&net<0)trend="BEARISH";
     const baseline=mean(changes.slice(-50,-14))||atr;
     const spike=baseline>0&&Math.abs(last-prev)>baseline*3;
-    const risingAtr=baseline>0&&atr>baseline*1.5;
-    let score=50,reasons=[];
-    if(width<0.18){score+=15;reasons.push("Bollinger width is relatively compressed");}
-    else if(width<0.35){score+=8;reasons.push("Bollinger width is moderate");}
-    else{score-=12;reasons.push("Bollinger Bands are wide");}
-    if(adx<20){score+=15;reasons.push("Directional movement is weak");}
-    else if(adx<25){score+=5;reasons.push("Trend strength is moderate");}
-    else{score-=18;reasons.push("Directional movement is strong");}
-    if(r>=42&&r<=58){score+=12;reasons.push("RSI is neutral");}
-    else if(r>68||r<32){score-=12;reasons.push("RSI shows strong momentum");}
-    else{score+=3;reasons.push("RSI is outside neutral zone");}
-    if(!risingAtr){score+=8;reasons.push("ATR is not expanding sharply");}
-    else{score-=15;reasons.push("ATR is expanding");}
-    if(spike){score-=30;reasons.push("A sudden tick spike was detected");}
-    if(Math.abs(e20-e50)/Math.abs(last)>0.001){score-=8;reasons.push("EMA separation suggests directional movement");}
+    const directional=adx>25||emaGap>0.0005||trend!=="SIDEWAYS";
+    let score=100,reasons=[];
+    if(bandsExpanding){score-=22;reasons.push("Bollinger Bands suddenly expanding");}
+    if(atrRising){score-=22;reasons.push("ATR rising sharply");}
+    if(adx>25){score-=22;reasons.push("ADX above 25: strong directional momentum");}
+    if(directional){score-=12;reasons.push("Directional trend detected");}
+    if(spike){score-=35;reasons.push("Unusually large tick spike");}
+    if(!bandsExpanding)reasons.push("Bollinger width stable");
+    if(!atrRising)reasons.push("ATR stable");
+    if(adx<=25)reasons.push("ADX at or below 25");
+    if(!spike)reasons.push("No sudden spike");
     score=Math.max(0,Math.min(100,Math.round(score)));
-    const label=score>=75&&!spike?"FAVOURABLE":score>=55&&!spike?"CAUTION":"AVOID";
-    return {last,mid,upper,lower,atr,r,e20,e50,adx,width,spike,score,label,reasons};
+    const qualified=!bandsExpanding&&!atrRising&&adx<=25&&!spike&&trend==="SIDEWAYS"&&score>=75;
+    return {last,mid,upper,lower,atr,r,e20,e50,adx,width,priorWidth,bandsExpanding,atrRising,spike,trend,score,qualified,reasons};
+  }
+  function calculate() {
+    const d=evaluateMarket(state.ticks);
+    if(!d)return null;
+    return {...d,label:d.qualified?"FAVOURABLE":d.score>=55?"CAUTION":"AVOID"};
   }
   function render() {
     if(!state.ticks.length)return;
@@ -236,7 +257,7 @@
     $("rsi").textContent=fmt(d.r);
     $("rsiDetail").textContent=d.r>70?"Overbought momentum":d.r<30?"Oversold momentum":d.r>=40&&d.r<=60?"Neutral momentum":"Moderate momentum";
     $("adx").textContent=fmt(d.adx);
-    $("adxDetail").textContent=d.adx<20?"Weak directional movement":d.adx<25?"Moderate directional movement":"Strong directional movement";
+    $("adxDetail").textContent=d.adx<=25?"At/below 25 · weaker trend":"Above 25 · strong momentum";
     $("ema").textContent=fmt(d.e20)+" / "+fmt(d.e50);
     $("emaDetail").textContent=Math.abs(d.e20-d.e50)/Math.abs(d.last)<.001?"Averages close together":d.e20>d.e50?"EMA 20 above EMA 50":"EMA 20 below EMA 50";
     $("spike").textContent=d.spike?"SPIKE DETECTED":"No spike";
@@ -249,7 +270,7 @@
     sig.querySelector(".signal-icon").textContent=d.label==="FAVOURABLE"?"✓":d.label==="AVOID"?"!":"…";
     sig.querySelector("strong").textContent=d.label==="FAVOURABLE"?"FAVOURABLE":d.label==="AVOID"?"AVOID":"WAIT";
     sig.querySelector("small").textContent=d.label==="FAVOURABLE"?"Calmer conditions only · verify contract settings":d.label==="AVOID"?"High-risk market conditions":"Mixed readings · wait for confirmation";
-    $("signalExplanation").textContent=d.reasons.join(" · ")+". This score describes indicator conditions only; it is not a probability of profit or contract survival.";
+    $("signalExplanation").textContent=d.reasons.join(" · ")+". Suitability index only, not a win probability. "+(d.qualified?"This market passes the current filters.":"NO TRADE: at least one required filter is not satisfied.");
     $("updated").textContent="Updated "+new Date().toLocaleTimeString();
   }
   function drawChart() {
