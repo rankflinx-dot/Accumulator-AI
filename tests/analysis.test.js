@@ -32,7 +32,7 @@ FakeWebSocket.OPEN = 1;
 const windowObject = { addEventListener() {}, scrollTo() {}, devicePixelRatio: 1 };
 const context = {
   window: windowObject,
-  document: { getElementById: element },
+  document: { getElementById: element, addEventListener() {}, hidden: false },
   WebSocket: FakeWebSocket,
   console,
   setTimeout: () => 1, clearTimeout() {},
