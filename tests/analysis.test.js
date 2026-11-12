@@ -55,9 +55,11 @@ socket.onmessage({ data: JSON.stringify({
     underlying_symbol: symbol, underlying_symbol_name: "Volatility " + symbol.slice(2) + " Index"
   }))
 }) });
-const contractRequests = socket.sent.filter(x => x.contracts_for);
-assert.equal(contractRequests.length, 5, "scanner should check every active symbol for ACCU availability");
-for (const request of contractRequests) {
+const firstContractRequest = socket.sent.filter(x => x.contracts_for);
+assert.equal(firstContractRequest.length, 1, "scanner should check ACCU availability sequentially");
+for (let i = 0; i < 5; i++) {
+  const request = socket.sent.filter(x => x.contracts_for)[i];
+  assert.ok(request, "scanner should request the next active symbol after each response");
   socket.onmessage({ data: JSON.stringify({
     req_id: request.req_id,
     contracts_for: { available: [{ contract_type: "ACCU" }] }
