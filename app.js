@@ -55,7 +55,7 @@
       state.ticks=[];
       $("marketName").textContent=names[state.market];
       $("quote").textContent="—";
-      send({ticks_history:state.market,adjust_start_time:1,count:300,end:"latest",style:"ticks"});
+      send({ticks_history:state.market,adjust_start_time:1,count:300,end:"latest",style:"ticks",subscribe:1});
     };
     ws.onmessage=event=>{
       if(state.ws!==ws)return;
@@ -71,10 +71,10 @@
           price:Number(p),time:Number(times[i]||Date.now()/1000)
         })).filter(t=>Number.isFinite(t.price));
         render();
+        if(msg.subscription)state.subscriptionId=msg.subscription.id;
         if(!state.historyLoaded) {
           state.historyLoaded=true;
-          setConnection("connected","History loaded · starting live ticks");
-          send({ticks:state.market,subscribe:1});
+          setConnection("connected","History loaded · live feed active");
         }
         return;
       }
