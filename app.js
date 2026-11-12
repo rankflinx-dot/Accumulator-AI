@@ -17,10 +17,14 @@
   }
   function marketDisplayName(detail,symbol) {
     const supplied=detail && (detail.underlying_symbol_name || detail.display_name);
+    if(/^1HZ/i.test(symbol)) {
+      if(supplied && /\\b1s\\b|\\(1s\\)/i.test(supplied)) return supplied;
+      const match=String(symbol).match(/^1HZ(\\d+)V$/i);
+      return "Volatility "+(match ? match[1] : symbol)+" (1s) Index";
+    }
     if(supplied) return supplied;
-    const match=String(symbol).match(/^(?:R_|1HZ)(\d+)/i);
-    const value=match ? match[1] : symbol;
-    return /^1HZ/i.test(symbol) ? "Volatility "+value+" (1s) Index" : "Volatility "+value+" Index";
+    const match=String(symbol).match(/^R_(\\d+)$/i);
+    return "Volatility "+(match ? match[1] : symbol)+" Index";
   }
   const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : NaN;
   const std = a => { const m=mean(a); return Math.sqrt(mean(a.map(x=>(x-m)**2))); };
