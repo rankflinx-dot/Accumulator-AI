@@ -149,7 +149,13 @@
         return;
       }
       if(msg.active_symbols) {
-        state.availableSymbols=msg.active_symbols.map(x=>x.symbol);
+        clearTimeout(state.dataTimer);
+        if(!Array.isArray(msg.active_symbols)) {
+          setConnection("error","Deriv returned an invalid active-markets response");
+          $("scannerStatus").textContent="Could not read the active markets list from Deriv. Reconnecting…";
+          return;
+        }
+        state.availableSymbols=msg.active_symbols.map(x=>x.symbol).filter(Boolean);
         if(!state.availableSymbols.includes(state.market)){
           setConnection("error",names[state.market]+" is not listed as an active symbol by Deriv");
           return;
