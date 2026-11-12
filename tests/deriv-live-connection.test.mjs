@@ -35,7 +35,8 @@ const finish = error => {
   } else {
     console.log("LIVE DERIV ACCUMULATOR MARKET TEST PASSED:", {
       endpoint,
-      activeSymbols: activeCount,\n      indexSymbolsChecked: contractRequests.size + eligibleMarkets.size,
+      activeSymbols: activeCount,
+      indexSymbolsChecked: contractRequests.size + eligibleMarkets.size,
       accumulatorMarkets: [...eligibleMarkets],
       historyResponses: [...seenHistory],
       liveTickResponses: [...seenTicks]
